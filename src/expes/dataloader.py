@@ -5,6 +5,9 @@ from typing import Optional, Union
 
 from datasets import DatasetDict, load_dataset, load_from_disk
 
+SRC_KEY = "src"
+DST_KEY = "dst"
+
 
 def load_orangesum():
     dataset = load_dataset("EdinburghNLP/orange_sum", "abstract")
@@ -31,10 +34,11 @@ def load_wikilarge_fr(
         return result
 
     source_location = location / "sources"
+    file_format = "wikilarge-fr.{}.csv"
     file_paths = {
-        "train": str(source_location / "wikilarge-fr.train.csv"),
-        "validation": str(source_location / "wikilarge-fr.val.csv"),
-        "test": str(source_location / "wikilarge-fr.test.csv"),
+        "train": str(source_location / file_format.format("train")),
+        "validation": str(source_location / file_format.format("val")),
+        "test": str(source_location / file_format.format("test")),
     }
 
     dataset_dict = DatasetDict()
@@ -43,11 +47,13 @@ def load_wikilarge_fr(
         dataset = load_dataset("csv", data_files=file_path)["train"]
         if "simple1" in dataset.column_names:
             dataset = dataset.remove_columns("simple1")
-        dataset = dataset.rename_columns({"original": "src", "simple": "dst"})
+        dataset = dataset.rename_columns(
+            {"original": SRC_KEY, "simple": DST_KEY}
+        )
         dataset = dataset.map(
             lambda example: {
-                "src": clean(example["src"]),
-                "dst": clean(example["dst"]),
+                SRC_KEY: clean(example[SRC_KEY]),
+                DST_KEY: clean(example[DST_KEY]),
             },
             batched=False,
         )
@@ -59,5 +65,32 @@ def load_wikilarge_fr(
     return dataset_dict
 
 
-def load_etr(location):
-    pass
+def load_etr_fr(
+    location: Optional[Union[str, Path]] = None,
+    use_cache=True,
+    save_to_disk=True,
+):
+    location = location or os.environ.get("ETR_FR_DIR")
+
+    assert location is not None
+    location = Path(location).resolve()
+    cache_location = location / "hf_dataset"
+
+    if use_cache and cache_location.exists():
+        return load_from_disk(cache_location)
+
+    source_location = location / "sources"
+    file_paths = {
+        "train": str(source_location / "train.json"),
+        "validation": str(source_location / "val.json"),
+        "test": str(source_location / "test.json"),
+    }
+
+    dataset_dict = load_dataset("json", data_files=file_paths).rename_columns(
+        {"original": SRC_KEY, "falc": DST_KEY}
+    )
+
+    if save_to_disk:
+        dataset_dict.save_to_disk(cache_location)
+
+    return dataset_dict
