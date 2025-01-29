@@ -1,0 +1,25 @@
+[project]
+name = "etr-peft-composition"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "adapters[dev]",
+    "bert-score>=0.3.13",
+    "evaluate>=0.4.3",
+    "jsonargparse>=4.36.0",
+    "jupyter>=1.1.1",
+    "lab>=8.3",
+    "ray==2.32.0",
+    "sentencepiece>=0.2.0",
+    "tensorboardx>=2.6.2.2",
+    "textacy>=0.13.0",
+    "textdescriptives",
+    "transformers",
+]
+
+[tool.uv.sources]
+adapters = { path = "src/adapters", editable = true }
+textdescriptives = { path = "src/TextDescriptives", editable = true }
+transformers = { path = "src/adapters/hf_transformers" }
