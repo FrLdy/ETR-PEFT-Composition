@@ -1,0 +1,42 @@
+{
+  "builder_name": "csv",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "csv",
+  "dataset_size": 79676170,
+  "description": "",
+  "download_checksums": {
+    "/home/ledoyen202/Documents/labo/etr-peft-composition/data/wikilarge-fr/sources/wikilarge-fr.train.csv": {
+      "num_bytes": 78695109,
+      "checksum": null
+    }
+  },
+  "download_size": 78695109,
+  "features": {
+    "src": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "dst": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 158371279,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 79676170,
+      "num_examples": 296402,
+      "dataset_name": "csv"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

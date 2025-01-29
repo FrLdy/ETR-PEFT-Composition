@@ -57,3 +57,7 @@ def load_wikilarge_fr(
         dataset_dict.save_to_disk(cache_location)
 
     return dataset_dict
+
+
+def load_etr(location):
+    pass
