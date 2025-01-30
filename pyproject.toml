@@ -11,6 +11,7 @@ dependencies = [
     "jsonargparse>=4.36.0",
     "jupyter>=1.1.1",
     "lab>=8.3",
+    "lorem>=0.1.1",
     "ray==2.32.0",
     "sentencepiece>=0.2.0",
     "tensorboardx>=2.6.2.2",
