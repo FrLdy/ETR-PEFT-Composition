@@ -21,7 +21,6 @@ from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_callback import TrainerCallback
 from transformers.trainer_utils import EvalPrediction
-from transformers.training_args import TrainingArguments
 from transformers.utils import (
     CONFIG_NAME,
     WEIGHTS_NAME,
@@ -32,6 +31,7 @@ from transformers.utils.import_utils import is_datasets_available
 
 from adapters.composition import AdapterCompositionBlock, Fuse
 from adapters.trainer import AdapterTrainerCallback
+from expes.training_args import TrainingArguments
 
 if is_sagemaker_mp_enabled():
     import smdistributed.modelparallel.torch as smp
@@ -214,6 +214,198 @@ class Trainer(BaseTrainer):
         return self.accelerator.prepare(
             DataLoader(test_dataset, **dataloader_params)
         )
+
+    def prediction_step(
+        self,
+        model: nn.Module,
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        prediction_loss_only: bool,
+        ignore_keys: Optional[List[str]] = None,
+        **gen_kwargs,
+    ) -> Tuple[
+        Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
+        """
+        Perform an evaluation step on `model` using `inputs`.
+
+        Subclass and override to inject custom behavior.
+
+        Args:
+            model (`nn.Module`):
+                The model to evaluate.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+            prediction_loss_only (`bool`):
+                Whether or not to return the loss only.
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+            gen_kwargs:
+                Additional `generate` specific kwargs.
+
+        Return:
+            Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
+            logits and labels (each being optional).
+        """
+        has_labels = (
+            False
+            if len(self.label_names) == 0
+            else all(inputs.get(k) is not None for k in self.label_names)
+        )
+
+        # Prioroty: gen_kwargs > args.gen_config > model.generation_config > default GenerationConfig()
+        if self.args.predict_with_generate:
+            gen_config = self.gen_config
+            default_synced_gpus = (
+                True if is_deepspeed_zero3_enabled() else False
+            )
+            synced_gpus = gen_kwargs.get("synced_gpus", default_synced_gpus)
+            if len(gen_kwargs) > 0:
+                unused_kwargs = gen_config.update(**gen_kwargs)
+                if unused_kwargs:
+                    logger.warning_once(
+                        "Following generation related kwargs were passed to `prediction_step` but not "
+                        f"used by `generate()`: {' '.join(unused_kwargs.keys())} .",
+                        "Make sure there are no typos in the passed kwargs or do not pass unused kwargs.",
+                    )
+
+        # For CLIP-like models capable of returning loss values.
+        # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
+        # is `True` in `model.forward`.
+        return_loss = inputs.get("return_loss", None)
+        if return_loss is None:
+            return_loss = self.can_return_loss
+        loss_without_labels = (
+            True if len(self.label_names) == 0 and return_loss else False
+        )
+
+        inputs = self._prepare_inputs(inputs)
+        if ignore_keys is None:
+            if hasattr(self.model, "config"):
+                ignore_keys = getattr(
+                    self.model.config, "keys_to_ignore_at_inference", []
+                )
+            else:
+                ignore_keys = []
+
+        # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
+        if has_labels or loss_without_labels:
+            labels = nested_detach(
+                tuple(inputs.get(name) for name in self.label_names)
+            )
+            if len(labels) == 1:
+                labels = labels[0]
+        else:
+            labels = None
+
+        # If the `generation_input_ids` was passed in inputs, the model can generate and we need to modify
+        # input keys. Otherwise, we don't know the `prompt` to generate from
+        if self.args.predict_with_generate and not prediction_loss_only:
+            generation_inputs = inputs.copy()
+            if "generation_input_ids" in generation_inputs:
+                # get inputs that are related to text and contain only generation prompt
+                generation_only_inputs = {
+                    k.replace("generation_", ""): v
+                    for k, v in generation_inputs.items()
+                    if "generation_" in k
+                }
+
+                # get common inputs that are not related to text, e.g. pixel-values
+                gen_keys = generation_only_inputs.keys()
+                generation_inputs_common = {
+                    k: v
+                    for k, v in generation_inputs.items()
+                    if k.replace("generation_", "") not in gen_keys
+                    and "generation" not in k
+                }
+                generated_tokens = model.generate(
+                    **generation_inputs_common,
+                    **generation_only_inputs,
+                    generation_config=gen_config,
+                    synced_gpus=synced_gpus,
+                )
+            else:
+                raise ValueError(
+                    "`predict_with_generate` is set to `True` but no inputs are passed for generation. ",
+                    "Make sure you have `generation_input_ids` and `generation_attention_mask`.",
+                )
+
+        # clean up inputs for loss from generation related input tensors if there are any before doing `forward`
+        inputs = {k: v for k, v in inputs.items() if "generation_" not in k}
+        with torch.no_grad():
+            if is_sagemaker_mp_enabled():
+                raw_outputs = smp_forward_only(model, inputs)
+                if has_labels or loss_without_labels:
+                    if isinstance(raw_outputs, dict):
+                        loss_mb = raw_outputs["loss"]
+                        logits_mb = tuple(
+                            v
+                            for k, v in raw_outputs.items()
+                            if k not in ignore_keys + ["loss"]
+                        )
+                    else:
+                        loss_mb = raw_outputs[0]
+                        logits_mb = raw_outputs[1:]
+
+                    loss = loss_mb.reduce_mean().detach().cpu()
+                    logits = smp_nested_concat(logits_mb)
+                else:
+                    loss = None
+                    if isinstance(raw_outputs, dict):
+                        logits_mb = tuple(
+                            v
+                            for k, v in raw_outputs.items()
+                            if k not in ignore_keys
+                        )
+                    else:
+                        logits_mb = raw_outputs
+                    logits = smp_nested_concat(logits_mb)
+            else:
+                if has_labels or loss_without_labels:
+                    with self.compute_loss_context_manager():
+                        loss, outputs = self.compute_loss(
+                            model, inputs, return_outputs=True
+                        )
+                    loss = loss.mean().detach()
+
+                    if isinstance(outputs, dict):
+                        logits = tuple(
+                            v
+                            for k, v in outputs.items()
+                            if k not in ignore_keys + ["loss"]
+                        )
+                    else:
+                        logits = outputs[1:]
+                else:
+                    loss = None
+                    with self.compute_loss_context_manager():
+                        outputs = model(**inputs)
+                    if isinstance(outputs, dict):
+                        logits = tuple(
+                            v
+                            for k, v in outputs.items()
+                            if k not in ignore_keys
+                        )
+                    else:
+                        logits = outputs
+                    # TODO: this needs to be fixed and made cleaner later.
+                    if self.args.past_index >= 0:
+                        self._past = outputs[self.args.past_index - 1]
+
+        if prediction_loss_only:
+            return (loss, None, None)
+
+        if self.args.predict_with_generate and not prediction_loss_only:
+            return (loss, generated_tokens, labels)
+
+        logits = nested_detach(logits)
+        if len(logits) == 1:
+            logits = logits[0]
+
+        return (loss, logits, labels)
 
 
 class Seq2SeqTrainer(BaseSeq2SeqTrainer, Trainer): ...
