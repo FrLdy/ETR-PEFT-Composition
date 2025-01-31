@@ -1,19 +1,7 @@
 import unittest
-from os import walk
 
-import lorem
-from datasets import Dataset
-
-from expes import dataset
 from expes.dataset import build_mtl_dataset
-
-
-def dataset_factory(n):
-    def gen():
-        for _ in range(n):
-            yield {"src": lorem.text(), "dst": lorem.text()}
-
-    return Dataset.from_generator(gen)
+from expes.tests.utils import lorem_ipsum_dataset
 
 
 def build_datasets():
@@ -21,7 +9,7 @@ def build_datasets():
     dataset_sizes = [10, 34, 50]
     task_ids_map = {name: idx for idx, name in enumerate(dataset_names)}
     datasets = {
-        name: dataset_factory(size)
+        name: lorem_ipsum_dataset(size)
         for (name, size) in zip(dataset_names, dataset_sizes)
     }
     return datasets, task_ids_map
