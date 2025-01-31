@@ -1,9 +1,10 @@
 import unittest
 
 import torch
-from transformers import LlamaConfig, LlamaForCausalLM
+from transformers import LlamaConfig
 from transformers.testing_utils import torch_device
 
+from expes.models.llama import LlamaForCausalLMAdapterModel
 from expes.tests.models.base import ModelBaseTestMixin
 from expes.tests.utils import ids_tensor
 
@@ -18,7 +19,7 @@ class TestLlama(ModelBaseTestMixin, unittest.TestCase):
             hidden_act="gelu",
             pad_token_id=0,
         )
-        model = LlamaForCausalLM(config)
+        model = LlamaForCausalLMAdapterModel(config)
         return model
 
     def inputs(self, bsz=1, n_tasks=0):
