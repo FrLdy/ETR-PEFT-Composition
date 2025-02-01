@@ -1,8 +1,8 @@
 import unittest
 from functools import partial
 
+import pytest
 import torch
-from pandas import test
 from transformers.testing_utils import require_torch, torch_device
 
 from adapters import init
@@ -189,3 +189,13 @@ class AdapterModelBaseTestMixin:
             attn_matrices,
             partial(self.run_test_del_MTL_lora, adapter_names, union_name),
         )
+
+    @pytest.fixture(autouse=True)
+    def test_save_load_MTL_lora(self, tmp_path):
+        union_name, adapter_names, model = self.build_MTL_lora_model()
+        attn_matrices = model.adapters_config.get(
+            union_name
+        ).base_config.attn_matrices
+        model.save_mtl_adapters(tmp_path, union_name)
+        files = tmp_path.glob("**/*")
+        __import__("pdb").set_trace()
