@@ -5,11 +5,11 @@ from transformers import MistralConfig
 from transformers.testing_utils import torch_device
 
 from expes.models.mistral import MistralForCausalLMAdapterModel
-from expes.tests.models.base import ModelBaseTestMixin
+from expes.tests.models.base import AdapterModelBaseTestMixin
 from expes.tests.utils import ids_tensor
 
 
-class TestMistral(ModelBaseTestMixin, unittest.TestCase):
+class TestMistralAdapter(AdapterModelBaseTestMixin, unittest.TestCase):
     def build_model(self):
         config = MistralConfig(
             hidden_size=32,

@@ -5,11 +5,11 @@ from transformers import LlamaConfig
 from transformers.testing_utils import torch_device
 
 from expes.models.llama import LlamaForCausalLMAdapterModel
-from expes.tests.models.base import ModelBaseTestMixin
+from expes.tests.models.base import AdapterModelBaseTestMixin
 from expes.tests.utils import ids_tensor
 
 
-class TestLlama(ModelBaseTestMixin, unittest.TestCase):
+class TestLlamaAdapter(AdapterModelBaseTestMixin, unittest.TestCase):
     def build_model(self):
         config = LlamaConfig(
             hidden_size=32,

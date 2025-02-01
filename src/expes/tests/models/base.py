@@ -1,6 +1,8 @@
 import unittest
+from functools import partial
 
 import torch
+from pandas import test
 from transformers.testing_utils import require_torch, torch_device
 
 from adapters import init
@@ -14,7 +16,7 @@ from expes.tests.utils import get_trainable_param_names, ids_tensor
 
 
 @require_torch
-class ModelBaseTestMixin:
+class AdapterModelBaseTestMixin:
 
     def build_model(self): ...
 
@@ -116,30 +118,74 @@ class ModelBaseTestMixin:
 
         return union_name, config.task_names, model
 
-    def test_add_MTL_lora(self):
-        union_name, adapter_names, model = self.build_MTL_lora_model()
-        attn_matices = model.adapters_config.get(
-            union_name
-        ).base_config.attn_matrices
-        for layer in model.model.layers:
-            for attn_mat in attn_matices:
+    def MTL_lora_exists(self, adapter_names, union_name, trainable_parameters):
+        return (
+            all(
+                f"loras.{adapter_name}.weights" in trainable_parameters
+                for adapter_name in adapter_names
+            ),
+            all(
+                any(
+                    f"loras.{adapter_name}.task_specific" in param_name
+                    for param_name in trainable_parameters
+                )
+                for adapter_name in adapter_names
+            ),
+            all(
+                f"shared_parameters.{union_name}.{param_name}"
+                in trainable_parameters
+                for param_name in ["lora_A", "lora_B"]
+            ),
+        )
+
+    def apply_test_on_attn_matrices(self, module, attn_matrices, fn):
+        for layer in module.layers:
+            for attn_mat in attn_matrices:
                 trainable_parameters = list(
                     get_trainable_param_names(
                         getattr(layer.self_attn, f"{attn_mat}_proj")
                     )
                 )
-                assert all(
-                    f"loras.{adapter_name}.weights" in trainable_parameters
-                    for adapter_name in adapter_names
-                )
-                assert all(
-                    any(
-                        f"loras.{adapter_name}.task_specific" in param_name
-                        for param_name in trainable_parameters
-                    )
-                    for adapter_name in adapter_names
-                )
-                assert all(
-                    f"shared_parameters.{union_name}.{param_name}"
-                    for param_name in ["lora_A", "lora_B"]
-                )
+                assert fn(trainable_parameters)
+
+    def run_test_add_MTL_lora(
+        self, adapter_names, union_name, trainable_parameters
+    ):
+        return all(
+            self.MTL_lora_exists(
+                adapter_names, union_name, trainable_parameters
+            )
+        )
+
+    def test_add_MTL_lora(self):
+        union_name, adapter_names, model = self.build_MTL_lora_model()
+        attn_matrices = model.adapters_config.get(
+            union_name
+        ).base_config.attn_matrices
+
+        self.apply_test_on_attn_matrices(
+            model.model,
+            attn_matrices,
+            partial(self.run_test_add_MTL_lora, adapter_names, union_name),
+        )
+
+    def run_test_del_MTL_lora(
+        self, adapter_names, union_name, trainable_parameters
+    ):
+        return not any(
+            self.MTL_lora_exists(
+                adapter_names, union_name, trainable_parameters
+            )
+        )
+
+    def test_del_MTL_lora(self):
+        union_name, adapter_names, model = self.build_MTL_lora_model()
+        attn_matrices = model.adapters_config.get(
+            union_name
+        ).base_config.attn_matrices
+        model.delete_adapter(union_name)
+        self.apply_test_on_attn_matrices(
+            model.model,
+            attn_matrices,
+            partial(self.run_test_del_MTL_lora, adapter_names, union_name),
+        )
