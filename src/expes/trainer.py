@@ -1,50 +1,71 @@
-import os
-import re
+import copy
+import math
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import datasets
-import torch
-from datasets import IterableDataset
-from torch import nn
-from torch.utils.data import DataLoader
-from torch.utils.data.dataset import Dataset
+import torch.nn as nn
+from datasets.iterable_dataset import torch
+from packaging import version
+from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import PreTrainedModel
-from transformers import Seq2SeqTrainer as BaseSeq2SeqTrainer
-from transformers import Trainer as BaseTrainer
-from transformers import __version__
-from transformers.configuration_utils import PretrainedConfig
+from transformers import Trainer as HFTrainer
 from transformers.data.data_collator import DataCollator
+from transformers.debug_utils import DebugOption
 from transformers.feature_extraction_utils import FeatureExtractionMixin
+from transformers.generation.configuration_utils import GenerationConfig
 from transformers.image_processing_utils import BaseImageProcessor
-from transformers.modeling_utils import unwrap_model
+from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
+from transformers.integrations.tpu import tpu_spmd_dataloader
 from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_callback import TrainerCallback
-from transformers.trainer_utils import EvalPrediction
-from transformers.utils import (
-    CONFIG_NAME,
-    WEIGHTS_NAME,
-    is_sagemaker_mp_enabled,
-    logging,
+from transformers.trainer_pt_utils import (
+    nested_detach,
+    smp_forward_only,
+    smp_nested_concat,
 )
-from transformers.utils.import_utils import is_datasets_available
+from transformers.trainer_utils import (
+    EvalPrediction,
+    PredictionOutput,
+    speed_metrics,
+)
 
-from adapters.composition import AdapterCompositionBlock, Fuse
-from adapters.trainer import AdapterTrainerCallback
+# if is_sagemaker_mp_enabled():
+#     import smdistributed.modelparallel.torch as smp
+from transformers.utils import logging
+from transformers.utils.import_utils import (
+    is_datasets_available,
+    is_sagemaker_mp_enabled,
+    is_torch_xla_available,
+)
+
+from adapters.trainer import AdapterTrainer
 from expes.training_args import TrainingArguments
 
-if is_sagemaker_mp_enabled():
-    import smdistributed.modelparallel.torch as smp
+if is_torch_xla_available():
+    import torch_xla.core.xla_model as xm
+    import torch_xla.debug.metrics as met
+    from torch_xla import __version__ as XLA_VERSION
 
+    IS_XLA_FSDPV2_POST_2_2 = version.parse(XLA_VERSION) >= version.parse(
+        XLA_FSDPV2_MIN_VERSION
+    )
+    if IS_XLA_FSDPV2_POST_2_2:
+        import torch_xla.distributed.spmd as xs
+        import torch_xla.runtime as xr
+else:
+    IS_XLA_FSDPV2_POST_2_2 = False
 
 logger = logging.get_logger(__name__)
 
 
-class Trainer(BaseTrainer):
+class Trainer(HFTrainer):
+    # inspired from https://github.com/huggingface/transformers/pull/32346
     def __init__(
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
-        args: TrainingArguments = None,
+        args: Optional[TrainingArguments] = None,
         data_collator: Optional[DataCollator] = None,
         eval_data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[
@@ -103,16 +124,13 @@ class Trainer(BaseTrainer):
     ) -> DataLoader:
         """
         Returns the evaluation [`~torch.utils.data.DataLoader`].
-
         Subclass and override this method if you want to inject some custom behavior.
-
         Args:
             eval_dataset (`str` or `torch.utils.data.Dataset`, *optional*):
                 If a `str`, will use `self.eval_dataset[eval_dataset]` as the evaluation dataset. If a `Dataset`, will override `self.eval_dataset` and must implement `__len__`. If it is a [`~datasets.Dataset`], columns not accepted by the `model.forward()` method are automatically removed.
         """
         if eval_dataset is None and self.eval_dataset is None:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
-
         # If we have persistent workers, don't do a fork bomb especially as eval datasets
         # don't change during training
         dataloader_key = (
@@ -126,12 +144,12 @@ class Trainer(BaseTrainer):
             return self.accelerator.prepare(
                 self._eval_dataloaders[dataloader_key]
             )
-
         eval_dataset = (
             self.eval_dataset[eval_dataset]
             if isinstance(eval_dataset, str)
             else eval_dataset if eval_dataset is not None else self.eval_dataset
         )
+        data_collator = self.data_collator
         data_collator = self.eval_data_collator
 
         if is_datasets_available() and isinstance(
@@ -144,7 +162,6 @@ class Trainer(BaseTrainer):
             data_collator = self._get_collator_with_removed_columns(
                 data_collator, description="evaluation"
             )
-
         dataloader_params = {
             "batch_size": self.args.eval_batch_size,
             "collate_fn": data_collator,
@@ -152,14 +169,12 @@ class Trainer(BaseTrainer):
             "pin_memory": self.args.dataloader_pin_memory,
             "persistent_workers": self.args.dataloader_persistent_workers,
         }
-
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
             dataloader_params["prefetch_factor"] = (
                 self.args.dataloader_prefetch_factor
             )
-
         # accelerator.free_memory() will destroy the references, so
         # we need to store the non-prepared version
         eval_dataloader = DataLoader(eval_dataset, **dataloader_params)
@@ -168,20 +183,18 @@ class Trainer(BaseTrainer):
                 self._eval_dataloaders[dataloader_key] = eval_dataloader
             else:
                 self._eval_dataloaders = {dataloader_key: eval_dataloader}
-
         return self.accelerator.prepare(eval_dataloader)
 
     def get_test_dataloader(self, test_dataset: Dataset) -> DataLoader:
         """
         Returns the test [`~torch.utils.data.DataLoader`].
-
         Subclass and override this method if you want to inject some custom behavior.
-
         Args:
             test_dataset (`torch.utils.data.Dataset`, *optional*):
                 The test dataset to use. If it is a [`~datasets.Dataset`], columns not accepted by the
                 `model.forward()` method are automatically removed. It must implement `__len__`.
         """
+        data_collator = self.data_collator
         data_collator = self.eval_data_collator
 
         if is_datasets_available() and isinstance(
@@ -194,7 +207,6 @@ class Trainer(BaseTrainer):
             data_collator = self._get_collator_with_removed_columns(
                 data_collator, description="test"
             )
-
         dataloader_params = {
             "batch_size": self.args.eval_batch_size,
             "collate_fn": data_collator,
@@ -202,17 +214,242 @@ class Trainer(BaseTrainer):
             "pin_memory": self.args.dataloader_pin_memory,
             "persistent_workers": self.args.dataloader_persistent_workers,
         }
-
         if not isinstance(test_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(test_dataset)
             dataloader_params["drop_last"] = self.args.dataloader_drop_last
             dataloader_params["prefetch_factor"] = (
                 self.args.dataloader_prefetch_factor
             )
-
         # We use the same batch_size as for eval.
         return self.accelerator.prepare(
             DataLoader(test_dataset, **dataloader_params)
+        )
+
+    def evaluate(
+        self,
+        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+        **gen_kwargs,
+    ) -> Dict[str, float]:
+        """
+        Run evaluation and returns metrics.
+        The calling script will be responsible for providing a method to compute metrics, as they are task-dependent
+        (pass it to the init `compute_metrics` argument).
+        You can also subclass and override this method to inject custom behavior.
+        Args:
+            eval_dataset (Union[`Dataset`, Dict[str, `Dataset`]), *optional*):
+                Pass a dataset if you wish to override `self.eval_dataset`. If it is a [`~datasets.Dataset`], columns
+                not accepted by the `model.forward()` method are automatically removed. If it is a dictionary, it will
+                evaluate on each dataset, prepending the dictionary key to the metric name. Datasets must implement the
+                `__len__` method.
+                <Tip>
+                If you pass a dictionary with names of datasets as keys and datasets as values, evaluate will run
+                separate evaluations on each dataset. This can be useful to monitor how training affects other
+                datasets or simply to get a more fine-grained evaluation.
+                When used with `load_best_model_at_end`, make sure `metric_for_best_model` references exactly one
+                of the datasets. If you, for example, pass in `{"data1": data1, "data2": data2}` for two datasets
+                `data1` and `data2`, you could specify `metric_for_best_model="eval_data1_loss"` for using the
+                loss on `data1` and `metric_for_best_model="eval_data2_loss"` for the loss on `data2`.
+                </Tip>
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
+                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
+                "eval_bleu" if the prefix is "eval" (default)
+            gen_kwargs:
+                Additional `generate` specific kwargs.
+        Returns:
+            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
+            dictionary also contains the epoch number which comes from the training state.
+        """
+        # handle multipe eval datasets
+        override = eval_dataset is not None
+        eval_dataset = eval_dataset if override else self.eval_dataset
+        if isinstance(eval_dataset, dict):
+            metrics = {}
+            for eval_dataset_name, _eval_dataset in eval_dataset.items():
+                dataset_metrics = self.evaluate(
+                    eval_dataset=(
+                        _eval_dataset if override else eval_dataset_name
+                    ),
+                    ignore_keys=ignore_keys,
+                    metric_key_prefix=f"{metric_key_prefix}_{eval_dataset_name}",
+                    **gen_kwargs,
+                )
+                metrics.update(dataset_metrics)
+            return metrics
+
+        # Set generation-related kwargs
+        if self.args.predict_with_generate:
+            if self.args.generation_config is None:
+                # We assume the model can generate if predict-with-generate is True
+                # Therefore, generation_config should be available
+                self.gen_config = self.model.generation_config
+            elif isinstance(self.args.generation_config, GenerationConfig):
+                gen_config = self.args.generation_config
+                self.gen_config = copy.deepcopy(
+                    gen_config
+                )  # copy so we don't modify args.gen_config in-place
+            else:
+                # That means `args.generation_config` is passed as a Dict
+                self.gen_config = self.model.generation_config
+                _ = self.gen_config.update(**self.args.generation_config)
+            unused_kwargs = self.gen_config.update(**gen_kwargs)
+            if unused_kwargs:
+                logger.warning_once(
+                    f"Following generation related kwargs were passed to `evaluate` but not used by `generate()`: "
+                    f"{' '.join(unused_kwargs.keys())} .",
+                    "Make sure there are no typos in the passed kwargs or do not pass unused kwargs.",
+                )
+
+        # memory metrics - must set up as early as possible
+        self._memory_tracker.start()
+
+        eval_dataloader = self.get_eval_dataloader(eval_dataset)
+        if self.is_fsdp_xla_v2_enabled:
+            eval_dataloader = tpu_spmd_dataloader(eval_dataloader)
+        start_time = time.time()
+        eval_loop = (
+            self.prediction_loop
+            if self.args.use_legacy_prediction_loop
+            else self.evaluation_loop
+        )
+        output = eval_loop(
+            eval_dataloader,
+            description="Evaluation",
+            # No point gathering the predictions if there are no metrics, otherwise we defer to
+            # self.args.prediction_loss_only
+            prediction_loss_only=True if self.compute_metrics is None else None,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+        )
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[
+                f"{metric_key_prefix}_jit_compilation_time"
+            ]
+        if f"{metric_key_prefix}_model_preparation_time" in output.metrics:
+            start_time += output.metrics[
+                f"{metric_key_prefix}_model_preparation_time"
+            ]
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+        self.log(output.metrics)
+        if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
+            # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
+            xm.master_print(met.metrics_report())
+        self.control = self.callback_handler.on_evaluate(
+            self.args, self.state, self.control, output.metrics
+        )
+        self._memory_tracker.stop_and_update_metrics(output.metrics)
+        return output.metrics
+
+    def predict(
+        self,
+        test_dataset: Dataset,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "test",
+        **gen_kwargs,
+    ) -> PredictionOutput:
+        """
+        Run prediction and returns predictions and potential metrics.
+        Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
+        will also return metrics, like in `evaluate()`.
+        Args:
+            test_dataset (`Dataset`):
+                Dataset to run the predictions on. If it is an `datasets.Dataset`, columns not accepted by the
+                `model.forward()` method are automatically removed. Has to implement the method `__len__`
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+            metric_key_prefix (`str`, *optional*, defaults to `"test"`):
+                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
+                "test_bleu" if the prefix is "test" (default)
+            gen_kwargs:
+                Additional `generate` specific kwargs.
+        <Tip>
+        If your predictions or labels have different sequence length (for instance because you're doing dynamic padding
+        in a token classification task) the predictions will be padded (on the right) to allow for concatenation into
+        one array. The padding index is -100.
+        </Tip>
+        Returns: *NamedTuple* A namedtuple with the following keys:
+            - predictions (`np.ndarray`): The predictions on `test_dataset`.
+            - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
+            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
+              labels).
+        """
+        # Set generation-related kwargs
+        if self.args.predict_with_generate:
+            if self.args.generation_config is None:
+                # We assume the model can generate if predict-with-generate is True
+                # Therefore, generation_config should be available
+                self.gen_config = self.model.generation_config
+            elif isinstance(self.args.generation_config, GenerationConfig):
+                gen_config = self.args.generation_config
+                self.gen_config = copy.deepcopy(
+                    gen_config
+                )  # copy so we don't modify args.gen_config in-place
+            else:
+                # That means `args.generation_config` is passed as a Dict
+                self.gen_config = self.model.generation_config
+                _ = self.gen_config.update(**self.args.generation_config)
+            unused_kwargs = self.gen_config.update(**gen_kwargs)
+            if unused_kwargs:
+                logger.warning_once(
+                    f"Following generation related kwargs were passed to `evaluate` but not used by `generate()`: "
+                    f"{' '.join(unused_kwargs.keys())} .",
+                    "Make sure there are no typos in the passed kwargs or do not pass unused kwargs.",
+                )
+
+        # memory metrics - must set up as early as possible
+        self._memory_tracker.start()
+
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        start_time = time.time()
+        eval_loop = (
+            self.prediction_loop
+            if self.args.use_legacy_prediction_loop
+            else self.evaluation_loop
+        )
+        output = eval_loop(
+            test_dataloader,
+            description="Prediction",
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+        )
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
+            start_time += output.metrics[
+                f"{metric_key_prefix}_jit_compilation_time"
+            ]
+        if f"{metric_key_prefix}_model_preparation_time" in output.metrics:
+            start_time += output.metrics[
+                f"{metric_key_prefix}_model_preparation_time"
+            ]
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+        self.control = self.callback_handler.on_predict(
+            self.args, self.state, self.control, output.metrics
+        )
+        self._memory_tracker.stop_and_update_metrics(output.metrics)
+        return PredictionOutput(
+            predictions=output.predictions,
+            label_ids=output.label_ids,
+            metrics=output.metrics,
         )
 
     def prediction_step(
@@ -227,15 +464,12 @@ class Trainer(BaseTrainer):
     ]:
         """
         Perform an evaluation step on `model` using `inputs`.
-
         Subclass and override to inject custom behavior.
-
         Args:
             model (`nn.Module`):
                 The model to evaluate.
             inputs (`Dict[str, Union[torch.Tensor, Any]]`):
                 The inputs and targets of the model.
-
                 The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
@@ -245,7 +479,6 @@ class Trainer(BaseTrainer):
                 gathering predictions.
             gen_kwargs:
                 Additional `generate` specific kwargs.
-
         Return:
             Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
             logits and labels (each being optional).
@@ -281,7 +514,6 @@ class Trainer(BaseTrainer):
         loss_without_labels = (
             True if len(self.label_names) == 0 and return_loss else False
         )
-
         inputs = self._prepare_inputs(inputs)
         if ignore_keys is None:
             if hasattr(self.model, "config"):
@@ -290,7 +522,6 @@ class Trainer(BaseTrainer):
                 )
             else:
                 ignore_keys = []
-
         # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
         if has_labels or loss_without_labels:
             labels = nested_detach(
@@ -349,7 +580,6 @@ class Trainer(BaseTrainer):
                     else:
                         loss_mb = raw_outputs[0]
                         logits_mb = raw_outputs[1:]
-
                     loss = loss_mb.reduce_mean().detach().cpu()
                     logits = smp_nested_concat(logits_mb)
                 else:
@@ -370,7 +600,6 @@ class Trainer(BaseTrainer):
                             model, inputs, return_outputs=True
                         )
                     loss = loss.mean().detach()
-
                     if isinstance(outputs, dict):
                         logits = tuple(
                             v
@@ -394,7 +623,6 @@ class Trainer(BaseTrainer):
                     # TODO: this needs to be fixed and made cleaner later.
                     if self.args.past_index >= 0:
                         self._past = outputs[self.args.past_index - 1]
-
         if prediction_loss_only:
             return (loss, None, None)
 
@@ -404,288 +632,4 @@ class Trainer(BaseTrainer):
         logits = nested_detach(logits)
         if len(logits) == 1:
             logits = logits[0]
-
         return (loss, logits, labels)
-
-
-class Seq2SeqTrainer(BaseSeq2SeqTrainer, Trainer): ...
-
-
-class AdapterTrainer(Trainer):
-    def __init__(
-        self,
-        model: Union[PreTrainedModel, nn.Module] = None,
-        args: TrainingArguments = None,
-        data_collator: Optional[DataCollator] = None,
-        train_dataset: Optional[Dataset] = None,
-        eval_dataset: Optional[Dataset] = None,
-        processing_class: Optional[
-            Union[
-                PreTrainedTokenizerBase,
-                BaseImageProcessor,
-                FeatureExtractionMixin,
-                ProcessorMixin,
-            ]
-        ] = None,
-        model_init: Callable[[], PreTrainedModel] = None,
-        compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
-        callbacks: Optional[List[TrainerCallback]] = None,
-        adapter_names: Optional[List[List[str]]] = None,
-        optimizers: Tuple[
-            torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR
-        ] = (None, None),
-        preprocess_logits_for_metrics: Callable[
-            [torch.Tensor, torch.Tensor], torch.Tensor
-        ] = None,
-    ):
-        if model is not None:
-            model_quantized = getattr(model, "is_quantized", False)
-            model.is_quantized = False
-        super().__init__(
-            model,
-            args,
-            data_collator,
-            train_dataset,
-            eval_dataset,
-            processing_class=processing_class,
-            model_init=model_init,
-            compute_metrics=compute_metrics,
-            callbacks=(
-                [AdapterTrainerCallback(self)] + callbacks
-                if callbacks
-                else [AdapterTrainerCallback(self)]
-            ),
-            optimizers=optimizers,
-            preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-        )
-        if model is not None:
-            model.is_quantized = model_quantized
-
-        if adapter_names is not None:
-            self.model.set_active_adapters(adapter_names)
-        # Set the defaults for loading/ saving model & adapters
-        if isinstance(self.model, PreTrainedModel):
-            model_frozen = getattr(self.model.base_model, "model_frozen", False)
-        else:
-            model_frozen = False
-        if model_frozen and self.model.active_adapters:
-            # Check if training AdapterFusion
-            self.train_adapter_fusion = (
-                isinstance(self.model.active_adapters, Fuse)
-                or isinstance(
-                    self.model.active_adapters, AdapterCompositionBlock
-                )
-                and any(
-                    [
-                        isinstance(child, Fuse)
-                        for child in self.model.active_adapters.children
-                    ]
-                )
-            )
-        if self.model.active_adapters is None:
-            raise ValueError(
-                "Expected a model with an active adapter setup."
-                "If you want to fully finetune the model use the Trainer class."
-            )
-        if (
-            self.label_names is None or len(self.label_names) < 1
-        ) and self.model.active_head is not None:
-            all_label_names = set()
-            for head in self.model._active_heads:
-                all_label_names |= set(self.model.heads[head].get_label_names())
-            self.label_names = list(all_label_names)
-
-    def create_optimizer(self):
-        """
-        Setup the optimizer.
-
-        We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
-        Trainer's init through `optimizers`, or subclass and override this method in a subclass.
-        """
-        opt_model = (
-            self.model_wrapped if is_sagemaker_mp_enabled() else self.model
-        )
-
-        if self.optimizer is None:
-            decay_parameters = self.get_decay_parameter_names(opt_model)
-            if hasattr(self.model, "config") and hasattr(
-                self.model.config, "adapters"
-            ):
-                match_str = r"adapter_fusion_layer\..*\.value"
-                decay_parameters = [
-                    name
-                    for name in decay_parameters
-                    if not re.match(match_str, name)
-                ]
-            optimizer_grouped_parameters = [
-                {
-                    "params": [
-                        p
-                        for n, p in opt_model.named_parameters()
-                        if (n in decay_parameters and p.requires_grad)
-                    ],
-                    "weight_decay": self.args.weight_decay,
-                },
-                {
-                    "params": [
-                        p
-                        for n, p in opt_model.named_parameters()
-                        if (n not in decay_parameters and p.requires_grad)
-                    ],
-                    "weight_decay": 0.0,
-                },
-            ]
-
-            optimizer_cls, optimizer_kwargs = (
-                Trainer.get_optimizer_cls_and_kwargs(self.args)
-            )
-            self.optimizer = optimizer_cls(
-                optimizer_grouped_parameters, **optimizer_kwargs
-            )
-
-        if is_sagemaker_mp_enabled():
-            self.optimizer = smp.DistributedOptimizer(self.optimizer)
-
-        return self.optimizer
-
-    def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        # If we are executing this function, we are the process zero, so we don't check for that.
-        output_dir = (
-            output_dir if output_dir is not None else self.args.output_dir
-        )
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Saving model checkpoint to {output_dir}")
-        # Save a trained model and configuration using `save_pretrained()`.
-        # They can then be reloaded using `from_pretrained()`
-        if not isinstance(self.model, PreTrainedModel):
-            if isinstance(unwrap_model(self.model), PreTrainedModel):
-                if state_dict is None:
-                    state_dict = self.model.state_dict()
-                unwrap_model(self.model).save_pretrained(
-                    output_dir, state_dict=state_dict
-                )
-            else:
-                logger.info(
-                    "Trainer.model is not a `PreTrainedModel`, only saving its state dict."
-                )
-                if state_dict is None:
-                    state_dict = self.model.state_dict()
-                torch.save(state_dict, os.path.join(output_dir, WEIGHTS_NAME))
-        else:
-            self.model.save_all_adapters(output_dir)
-            if self.train_adapter_fusion:
-                self.model.save_all_adapter_fusions(output_dir)
-            if hasattr(self.model, "heads"):
-                self.model.save_all_heads(output_dir)
-        if self.processing_class is not None:
-            self.processing_class.save_pretrained(output_dir)
-
-        # Good practice: save your training arguments together with the trained model
-        torch.save(self.args, os.path.join(output_dir, "training_args.bin"))
-
-    def _load_from_checkpoint(self, resume_from_checkpoint):
-        args = self.args
-        if os.path.isfile(os.path.join(resume_from_checkpoint, WEIGHTS_NAME)):
-            logger.info(f"Loading model from {resume_from_checkpoint}).")
-
-        if os.path.isfile(os.path.join(resume_from_checkpoint, CONFIG_NAME)):
-            config = PretrainedConfig.from_json_file(
-                os.path.join(resume_from_checkpoint, CONFIG_NAME)
-            )
-            checkpoint_version = config.transformers_version
-            if (
-                checkpoint_version is not None
-                and checkpoint_version != __version__
-            ):
-                logger.warn(
-                    f"You are resuming training from a checkpoint trained with {checkpoint_version} of "
-                    f"Transformers but your current version is {__version__}. This is not recommended and could "
-                    "yield to errors or unwanted behaviors."
-                )
-
-        if args.deepspeed:
-            # will be resumed in deepspeed_init
-            pass
-        else:
-            adapter_loaded = False
-            if os.path.isdir(resume_from_checkpoint):
-                adapter_loaded = self._load_adapters(resume_from_checkpoint)
-                self._load_adapter_fusions(resume_from_checkpoint)
-                # Save all heads for a model with heads
-                if hasattr(self.model, "heads"):
-                    self._load_heads(resume_from_checkpoint)
-
-            if not adapter_loaded:
-                raise Exception(
-                    "Can't find a valid checkpoint at {}".format(
-                        resume_from_checkpoint
-                    )
-                )
-
-    def _load_adapters(self, resume_from_checkpoint):
-        adapter_loaded = False
-        for file_name in os.listdir(resume_from_checkpoint):
-            if os.path.isdir(os.path.join(resume_from_checkpoint, file_name)):
-                if (
-                    "," not in file_name
-                    and "adapter_config.json"
-                    in os.listdir(
-                        os.path.join(resume_from_checkpoint, file_name)
-                    )
-                ):
-                    self.model.load_adapter(
-                        os.path.join(
-                            os.path.join(resume_from_checkpoint, file_name)
-                        )
-                    )
-                    adapter_loaded = True
-        return adapter_loaded
-
-    def _load_adapter_fusions(self, resume_from_checkpoint):
-        for file_name in os.listdir(resume_from_checkpoint):
-            if os.path.isdir(os.path.join(resume_from_checkpoint, file_name)):
-                if "," in file_name:
-                    self.model.load_adapter_fusion(
-                        os.path.join(resume_from_checkpoint, file_name)
-                    )
-
-    def _load_heads(self, resume_from_checkpoint):
-        for file_name in os.listdir(resume_from_checkpoint):
-            if os.path.isdir(os.path.join(resume_from_checkpoint, file_name)):
-                if "," not in file_name and "head_config.json" in os.listdir(
-                    os.path.join(resume_from_checkpoint, file_name)
-                ):
-                    self.model.load_head(
-                        os.path.join(resume_from_checkpoint, file_name)
-                    )
-
-    def _load_best_model(self):
-        model = self.model_wrapped if is_sagemaker_mp_enabled() else self.model
-        logger.info(
-            f"Loading best adapter(s) from {self.state.best_model_checkpoint} (score: {self.state.best_metric})."
-        )
-        # attempt to re-load all adapters from checkpoint
-        for adapter in model.adapters_config.adapters:
-            adapter_dir = os.path.join(
-                self.state.best_model_checkpoint, adapter
-            )
-            if os.path.exists(adapter_dir):
-                model.load_adapter(adapter_dir)
-                model.adapter_to(adapter, device=self.args.device)
-        if self.train_adapter_fusion:
-            logger.info(
-                f"Loading best adapter fusion(s) from {self.state.best_model_checkpoint} (score:"
-                f" {self.state.best_metric})."
-            )
-            # attempt to re-load all adapter fusions from checkpoint
-            for fusion in model.adapters_config.fusions:
-                fusion_dir = os.path.join(
-                    self.state.best_model_checkpoint, fusion
-                )
-                if os.path.exists(fusion_dir):
-                    model.load_adapter_fusion(fusion_dir)
-                    model.adapter_fusion_to(fusion, device=self.args.device)
-
-
-class Seq2SeqAdapterTrainer(AdapterTrainer, Seq2SeqTrainer):
-    pass
