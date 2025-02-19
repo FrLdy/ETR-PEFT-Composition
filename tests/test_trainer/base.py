@@ -175,3 +175,9 @@ class BaseTestTrainer:
                         adapter_name,
                         filter_keys,
                     )
+
+    def run_test_compute_metrics(self, eval_pred, tokenizer):
+        if hasattr(tokenizer, "eval_pred_manager"):
+            eval_pred = tokenizer.eval_pred_manager(eval_pred)
+
+        return {"dummy_score": 1.0}

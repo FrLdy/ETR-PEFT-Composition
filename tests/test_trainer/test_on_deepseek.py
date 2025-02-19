@@ -13,9 +13,9 @@ from expes.datacollator import DataCollatorForSeq2SeqCausalLM
 from .base import BaseTestTrainer
 
 
-class TestLlama27BTrainer(unittest.TestCase, BaseTestTrainer):
+class TestDeepSeekR1Llama8B(unittest.TestCase, BaseTestTrainer):
     is_seq2seq = False
-    checkpoint = "meta-llama/Llama-2-7b-hf"
+    checkpoint = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
 
     def get_model_tokenizer(self):
 
@@ -37,46 +37,6 @@ class TestLlama27BTrainer(unittest.TestCase, BaseTestTrainer):
         model.resize_token_embeddings(len(tokenizer))
 
         return model, tokenizer
-
-    def trainer_kwargs(self, tokenizer):
-        return {
-            "data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-            ),
-            "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-                eval_mode=True,
-            ),
-        }
-
-
-class TestLlama323BTrainer(TestLlama27BTrainer):
-    checkpoint = "meta-llama/Llama-3.2-3B"
-
-    def trainer_kwargs(self, tokenizer):
-        instruction_template = [14711, 5688, 25]
-        response_template = [17010, 9442, 25]
-        return {
-            "data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-                instruction_template=instruction_template,
-                response_template=response_template,
-            ),
-            "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-                eval_mode=True,
-                instruction_template=instruction_template,
-                response_template=response_template,
-            ),
-        }
-
-
-class TestLlama318BTrainer(TestLlama27BTrainer):
-    checkpoint = "meta-llama/Llama-3.1-8B"
 
     def trainer_kwargs(self, tokenizer):
         instruction_template = [14711, 5688, 25]
