@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from functools import partial
 
+from expes.eval_pred_manager import ChatEvalPredictionManager
+
 
 @dataclass
 class ChatTemplate:
@@ -30,6 +32,8 @@ class ChatTemplate:
             input_prefix=tokenizer.input_prefix,
             output_prefix=tokenizer.output_prefix,
         )
+
+        tokenizer.eval_pred_manager = ChatEvalPredictionManager(self, tokenizer)
 
         return tokenizer
 
