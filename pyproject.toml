@@ -7,20 +7,43 @@ requires-python = ">=3.10"
 dependencies = [
     "adapters[dev]",
     "bert-score>=0.3.13",
+    "black>=24.4.2",
     "evaluate>=0.4.3",
+    "flake8>=7.1.1",
+    "isort>=5.13.2",
     "jsonargparse>=4.36.0",
     "jupyter>=1.1.1",
     "lab>=8.3",
     "lorem>=0.1.1",
-    "ray==2.32.0",
+    "ray[tune]==2.32.0",
     "sentencepiece>=0.2.0",
     "tensorboardx>=2.6.2.2",
     "textacy>=0.13.0",
     "textdescriptives",
     "transformers",
+    "trl>=0.14.0",
 ]
 
 [tool.uv.sources]
-adapters = { path = "src/adapters", editable = true }
-textdescriptives = { path = "src/TextDescriptives", editable = true }
-transformers = { path = "src/adapters/hf_transformers" }
+textdescriptives = { path = "dependencies/TextDescriptives", editable = true }
+adapters = { path = "dependencies/adapters", editable = true }
+transformers = { path = "dependencies/adapters/hf_transformers", editable = true }
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.isort]
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
