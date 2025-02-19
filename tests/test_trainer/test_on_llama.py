@@ -1,6 +1,5 @@
 import unittest
 
-from torch._prims_common import check_layout
 from transformers import (
     AutoConfig,
     AutoTokenizer,
@@ -14,7 +13,7 @@ from expes.datacollator import DataCollatorForSeq2SeqCausalLM
 from .base import BaseTestTrainer
 
 
-class TestLlama2Trainer(unittest.TestCase, BaseTestTrainer):
+class TestLlama27BTrainer(unittest.TestCase, BaseTestTrainer):
     is_seq2seq = False
     checkpoint = "meta-llama/Llama-2-7b-hf"
 
@@ -57,3 +56,49 @@ class TestLlama2Trainer(unittest.TestCase, BaseTestTrainer):
             eval_pred = tokenizer.eval_pred_manager(eval_pred)
 
         return {"dummy_score": 1.0}
+
+
+class TestLlama323BTrainer(TestLlama27BTrainer):
+    checkpoint = "meta-llama/Llama-3.2-3B"
+
+    def trainer_kwargs(self, tokenizer):
+        response_template = [17010, 9442, 25]
+        instruction_template = [14711, 5688, 25]
+        return {
+            "data_collator": DataCollatorForSeq2SeqCausalLM(
+                tokenizer=tokenizer,
+                loss_completion_only=True,
+                response_template=response_template,
+                instruction_template=instruction_template,
+            ),
+            "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
+                tokenizer=tokenizer,
+                loss_completion_only=True,
+                eval_mode=True,
+                response_template=response_template,
+                instruction_template=instruction_template,
+            ),
+        }
+
+
+# class TestLlama318BTrainer(TestLlama27BTrainer):
+#     checkpoint = "meta-llama/Llama-3.1-8B"
+#
+#     def trainer_kwargs(self, tokenizer):
+#         response_template = [17010, 9442, 25]
+#         instruction_template = [14711, 5688, 25]
+#         return {
+#             "data_collator": DataCollatorForSeq2SeqCausalLM(
+#                 tokenizer=tokenizer,
+#                 loss_completion_only=True,
+#                 response_template=response_template,
+#                 instruction_template=instruction_template,
+#             ),
+#             "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
+#                 tokenizer=tokenizer,
+#                 loss_completion_only=True,
+#                 eval_mode=True,
+#                 response_template=response_template,
+#                 instruction_template=instruction_template,
+#             ),
+#         }
