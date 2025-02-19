@@ -1,6 +1,11 @@
+from collections import defaultdict
+
 import numpy as np
 from pandas.core.computation.parsing import token
-from transformers.data.data_collator import DataCollatorForLanguageModeling
+from transformers.data.data_collator import (
+    DataCollatorForLanguageModeling,
+    torch_default_data_collator,
+)
 from trl import DataCollatorForCompletionOnlyLM
 
 
@@ -36,11 +41,12 @@ class DataCollatorForSeq2SeqCausalLM:
 
     def __call__(self, examples):
         texts, texts_eval = zip(*[self._process_example(ex) for ex in examples])
-
+        batch = torch_default_data_collator(examples)
         # Tokenize input text with right padding for training
         self.causal_lm_collator.tokenizer.padding_side = "right"
-        batch = self.tokenizer(list(texts), padding=True)
-        batch = self.causal_lm_collator(batch["input_ids"])
+        batch.update(self.tokenizer(list(texts), padding=True, return_tensors="pt"))
+
+        batch.update(self.causal_lm_collator(batch["input_ids"]))
         if self.eval_mode:
             self.tokenizer.padding_side = "left"
             batch_eval = self.tokenizer(
