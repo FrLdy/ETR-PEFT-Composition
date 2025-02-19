@@ -1,15 +1,14 @@
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Optional, Union
 
 from transformers.generation.configuration_utils import GenerationConfig
-from transformers.training_args import (
-    TrainingArguments as BaseTrainingArguments,
-)
+from transformers.training_args import TrainingArguments as BaseTrainingArguments
 from transformers.training_args_seq2seq import (
     Seq2SeqTrainingArguments as BaseSeq2SeqTrainingArguments,
 )
 
 
+@dataclass
 class TrainingArguments(BaseTrainingArguments):
     predict_with_generate: bool = field(
         default=False,
@@ -30,4 +29,5 @@ class TrainingArguments(BaseTrainingArguments):
     )
 
 
+@dataclass
 class Seq2SeqTrainingArguments(BaseSeq2SeqTrainingArguments): ...

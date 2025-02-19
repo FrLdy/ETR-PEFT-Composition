@@ -4,8 +4,8 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import datasets
+import torch
 import torch.nn as nn
-from datasets.iterable_dataset import torch
 from packaging import version
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import PreTrainedModel
@@ -20,19 +20,12 @@ from transformers.integrations.tpu import tpu_spmd_dataloader
 from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer_callback import TrainerCallback
-from transformers.trainer_pt_utils import (
-    nested_detach,
-    smp_forward_only,
-    smp_nested_concat,
-)
+from transformers.trainer_pt_utils import nested_detach
 from transformers.trainer_utils import (
     EvalPrediction,
     PredictionOutput,
     speed_metrics,
 )
-
-# if is_sagemaker_mp_enabled():
-#     import smdistributed.modelparallel.torch as smp
 from transformers.utils import logging
 from transformers.utils.import_utils import (
     is_datasets_available,
@@ -40,8 +33,18 @@ from transformers.utils.import_utils import (
     is_torch_xla_available,
 )
 
-from adapters.trainer import AdapterTrainer
 from expes.training_args import TrainingArguments
+
+if is_sagemaker_mp_enabled():
+    from smdistributed.modelparallel import __version__ as SMP_VERSION
+
+    IS_SAGEMAKER_MP_POST_1_10 = version.parse(SMP_VERSION) >= version.parse(
+        "1.10"
+    )
+
+    from .trainer_pt_utils import smp_forward_only, smp_nested_concat
+else:
+    IS_SAGEMAKER_MP_POST_1_10 = False
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
@@ -51,9 +54,6 @@ if is_torch_xla_available():
     IS_XLA_FSDPV2_POST_2_2 = version.parse(XLA_VERSION) >= version.parse(
         XLA_FSDPV2_MIN_VERSION
     )
-    if IS_XLA_FSDPV2_POST_2_2:
-        import torch_xla.distributed.spmd as xs
-        import torch_xla.runtime as xr
 else:
     IS_XLA_FSDPV2_POST_2_2 = False
 
@@ -147,7 +147,9 @@ class Trainer(HFTrainer):
         eval_dataset = (
             self.eval_dataset[eval_dataset]
             if isinstance(eval_dataset, str)
-            else eval_dataset if eval_dataset is not None else self.eval_dataset
+            else (
+                eval_dataset if eval_dataset is not None else self.eval_dataset
+            )
         )
         data_collator = self.data_collator
         data_collator = self.eval_data_collator
@@ -194,7 +196,6 @@ class Trainer(HFTrainer):
                 The test dataset to use. If it is a [`~datasets.Dataset`], columns not accepted by the
                 `model.forward()` method are automatically removed. It must implement `__len__`.
         """
-        data_collator = self.data_collator
         data_collator = self.eval_data_collator
 
         if is_datasets_available() and isinstance(
@@ -321,7 +322,9 @@ class Trainer(HFTrainer):
             description="Evaluation",
             # No point gathering the predictions if there are no metrics, otherwise we defer to
             # self.args.prediction_loss_only
-            prediction_loss_only=True if self.compute_metrics is None else None,
+            prediction_loss_only=(
+                True if self.compute_metrics is None else None
+            ),
             ignore_keys=ignore_keys,
             metric_key_prefix=metric_key_prefix,
         )
