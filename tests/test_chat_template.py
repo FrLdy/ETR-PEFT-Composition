@@ -1,5 +1,4 @@
 import unittest
-from os import walk
 
 import lorem
 from transformers.models.auto.tokenization_auto import AutoTokenizer

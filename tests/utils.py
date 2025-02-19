@@ -29,9 +29,7 @@ def ids_tensor(shape, vocab_size, rng=None, name=None):
 
 
 def get_trainable_param_names(model):
-    trainable_parameters = (
-        n for n, p in model.named_parameters() if p.requires_grad
-    )
+    trainable_parameters = (n for n, p in model.named_parameters() if p.requires_grad)
 
     return trainable_parameters
 
