@@ -1,7 +1,3 @@
-from collections import defaultdict
-
-import numpy as np
-from pandas.core.computation.parsing import token
 from transformers.data.data_collator import (
     DataCollatorForLanguageModeling,
     torch_default_data_collator,
@@ -17,6 +13,8 @@ class DataCollatorForSeq2SeqCausalLM:
         loss_completion_only=False,
         source_key="src",
         target_key="dst",
+        response_template=None,
+        instruction_template=None,
     ):
         self.tokenizer = tokenizer
         self.eval_mode = eval_mode
@@ -28,8 +26,9 @@ class DataCollatorForSeq2SeqCausalLM:
         if loss_completion_only:
             self.causal_lm_collator = DataCollatorForCompletionOnlyLM(
                 tokenizer=self.tokenizer,
-                response_template=tokenizer.output_prefix,
-                instruction_template=tokenizer.input_prefix,
+                response_template=response_template or tokenizer.output_prefix,
+                instruction_template=instruction_template
+                or tokenizer.input_prefix,
             )
         else:
             self.causal_lm_collator = DataCollatorForLanguageModeling(
@@ -44,7 +43,9 @@ class DataCollatorForSeq2SeqCausalLM:
         batch = torch_default_data_collator(examples)
         # Tokenize input text with right padding for training
         self.causal_lm_collator.tokenizer.padding_side = "right"
-        batch.update(self.tokenizer(list(texts), padding=True, return_tensors="pt"))
+        batch.update(
+            self.tokenizer(list(texts), padding=True, return_tensors="pt")
+        )
 
         batch.update(self.causal_lm_collator(batch["input_ids"]))
         if self.eval_mode:
