@@ -5,8 +5,14 @@ from tempfile import TemporaryDirectory
 import adapters
 import torch
 from adapters.heads.language_modeling import CausalLMHead
+from transformers.trainer_utils import EvalPrediction
 
 from expes.adapter_trainer import AdapterTrainer, Seq2SeqAdapterTrainer
+from expes.callbacks import (
+    LogParametersTrainedCallback,
+    SavePredictionsCallback,
+)
+from expes.metric import TEXT_METRIC_KEY
 from expes.training_args import TrainingArguments
 
 from ..utils import lorem_ipsum_dataset
@@ -99,6 +105,8 @@ class BaseTestTrainer:
             ),
             **kwargs,
         )
+        trainer.add_callback(SavePredictionsCallback)
+        trainer.add_callback(LogParametersTrainedCallback(trainer))
         trainer.train()
 
     def run_train_test(
@@ -178,6 +186,13 @@ class BaseTestTrainer:
 
     def run_test_compute_metrics(self, eval_pred, tokenizer):
         if hasattr(tokenizer, "eval_pred_manager"):
-            eval_pred = tokenizer.eval_pred_manager(eval_pred)
+            eval_pred: EvalPrediction = tokenizer.eval_pred_manager(eval_pred)
 
-        return {"dummy_score": 1.0}
+        return {
+            "dummy_score": 1.0,
+            TEXT_METRIC_KEY: {
+                "inputs": eval_pred.inputs,
+                "labels": eval_pred.label_ids,
+                "predictions": eval_pred.predictions,
+            },
+        }
