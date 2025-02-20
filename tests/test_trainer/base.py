@@ -15,7 +15,7 @@ from expes.callbacks import (
 from expes.metric import TEXT_METRIC_KEY
 from expes.training_args import TrainingArguments
 
-from ..utils import lorem_ipsum_dataset
+from ..utils import get_dataset, lorem_ipsum_dataset
 
 
 class BaseTestTrainer:
@@ -38,22 +38,6 @@ class BaseTestTrainer:
         ),
     ]
 
-    def get_dataset(self, adapter_config=None, task_id=None):
-        dataset = lorem_ipsum_dataset(25)
-        dataset_size = len(dataset)
-        if hasattr(adapter_config, "task_names"):
-            dataset = dataset.add_column(
-                "task_ids",
-                torch.randint(
-                    0, len(adapter_config.task_names), (dataset_size,)
-                ).tolist(),
-            )
-        if task_id is not None:
-            dataset = dataset.add_column(
-                "task_ids", torch.tensor([task_id] * dataset_size).tolist()
-            )
-        return dataset
-
     def trainings_run(
         self,
         model,
@@ -67,14 +51,15 @@ class BaseTestTrainer:
         **kwargs,
     ):
         # setup dataset
-        train_dataset = self.get_dataset(adapter_config)
         if hasattr(adapter_config, "task_names"):
+            train_dataset = get_dataset(n_tasks=len(adapter_config.task_names))
             eval_dataset = {
-                t: self.get_dataset(task_id=i)
+                t: get_dataset(task_id=i)
                 for i, t in enumerate(adapter_config.task_names)
             }
         else:
-            eval_dataset = self.get_dataset(adapter_config)
+            train_dataset = get_dataset()
+            eval_dataset = get_dataset()
 
         training_args = TrainingArguments(
             output_dir=output_dir,

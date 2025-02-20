@@ -29,7 +29,9 @@ def ids_tensor(shape, vocab_size, rng=None, name=None):
 
 
 def get_trainable_param_names(model):
-    trainable_parameters = (n for n, p in model.named_parameters() if p.requires_grad)
+    trainable_parameters = (
+        n for n, p in model.named_parameters() if p.requires_grad
+    )
 
     return trainable_parameters
 
@@ -55,3 +57,18 @@ def dummy_dataset(n_sample, input_len=100, label_len=100):
 
 def dummy_compute_metrics(**kwargs):
     return {f"metric{i}": random.uniform(0, 1) for i in range(5)}
+
+
+def get_dataset(n_tasks=None, task_id=None):
+    dataset = lorem_ipsum_dataset(25)
+    dataset_size = len(dataset)
+    if n_tasks:
+        dataset = dataset.add_column(
+            "task_ids",
+            torch.randint(0, n_tasks, (dataset_size,)).tolist(),
+        )
+    if task_id is not None:
+        dataset = dataset.add_column(
+            "task_ids", torch.tensor([task_id] * dataset_size).tolist()
+        )
+    return dataset
