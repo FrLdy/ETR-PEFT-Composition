@@ -27,8 +27,7 @@ class DataCollatorForSeq2SeqCausalLM:
             self.causal_lm_collator = DataCollatorForCompletionOnlyLM(
                 tokenizer=self.tokenizer,
                 response_template=response_template or tokenizer.output_prefix,
-                instruction_template=instruction_template
-                or tokenizer.input_prefix,
+                instruction_template=instruction_template or tokenizer.input_prefix,
             )
         else:
             self.causal_lm_collator = DataCollatorForLanguageModeling(
@@ -43,9 +42,7 @@ class DataCollatorForSeq2SeqCausalLM:
         batch = torch_default_data_collator(examples)
         # Tokenize input text with right padding for training
         self.causal_lm_collator.tokenizer.padding_side = "right"
-        batch.update(
-            self.tokenizer(list(texts), padding=True, return_tensors="pt")
-        )
+        batch.update(self.tokenizer(list(texts), padding=True, return_tensors="pt"))
 
         batch.update(self.causal_lm_collator(batch["input_ids"]))
         if self.eval_mode:

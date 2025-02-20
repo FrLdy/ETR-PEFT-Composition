@@ -7,9 +7,7 @@ from expes.chat_template import causal_chat_template
 
 
 class TestChatTemplate(unittest.TestCase):
-    tokenizer = AutoTokenizer.from_pretrained(
-        "mistralai/Mistral-7B-Instruct-v0.1"
-    )
+    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
     tokenizer.chat_template = causal_chat_template.chat_template
 
     def build_message(self, input, answer=None):

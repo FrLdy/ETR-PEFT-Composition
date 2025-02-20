@@ -47,9 +47,7 @@ def load_wikilarge_fr(
         dataset = load_dataset("csv", data_files=file_path)["train"]
         if "simple1" in dataset.column_names:
             dataset = dataset.remove_columns("simple1")
-        dataset = dataset.rename_columns(
-            {"original": SRC_KEY, "simple": DST_KEY}
-        )
+        dataset = dataset.rename_columns({"original": SRC_KEY, "simple": DST_KEY})
         dataset = dataset.map(
             lambda example: {
                 SRC_KEY: clean(example[SRC_KEY]),

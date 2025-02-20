@@ -7,9 +7,7 @@ from datasets import Dataset, concatenate_datasets, interleave_datasets
 def build_mtl_dataset(
     datasets: Dict[str, Dataset],
     task_ids_map: Dict[str, int],
-    stopping_strategy: Optional[
-        Literal["first_exhausted", "all_exhausted"]
-    ] = None,
+    stopping_strategy: Optional[Literal["first_exhausted", "all_exhausted"]] = None,
 ):
 
     datasets = {

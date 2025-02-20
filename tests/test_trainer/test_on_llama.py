@@ -1,11 +1,6 @@
 import unittest
 
-from transformers import (
-    AutoConfig,
-    AutoTokenizer,
-    LlamaConfig,
-    LlamaForCausalLM,
-)
+from transformers import AutoConfig, AutoTokenizer, LlamaConfig, LlamaForCausalLM
 
 from expes.chat_template import ChatTemplate
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
