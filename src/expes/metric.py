@@ -10,6 +10,8 @@ import textdescriptives as td
 from datasets.utils.py_utils import Literal
 from scipy.stats import hmean
 
+TEXT_METRIC_KEY = "texts"
+
 
 def load_nlp(lang: Literal["en", "fr"] = "en"):
     spacy_models = {"en": "en_core_web_md", "fr": "fr_core_news_md"}
@@ -147,8 +149,8 @@ class FALCMetrics:
             ).mean()
         }
 
-    def sari_r2_bertscore_hmean(self, sari, rouge, bertscore):
-        return {"sari_r2_bertf1_hmean": hmean([sari, rouge, bertscore])}
+    def sari_rouge_bertscore_hmean(self, sari, rouge, bertscore):
+        return {"sari_rouge_bertf1_hmean": hmean([sari, rouge, bertscore])}
 
     def compute(self, predictions, references, sources):
         kwargs = {
