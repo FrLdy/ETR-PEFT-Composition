@@ -15,6 +15,7 @@ from ray.tune.schedulers.async_hyperband import ASHAScheduler
 from expes.callbacks import (
     LogParametersTrainedCallback,
     SavePredictionsCallback,
+    TestModelEachEpochCallback,
 )
 
 
@@ -51,7 +52,7 @@ class TunerFactories:
             output_dir=".",
             eval_strategy="epoch",
             save_strategy="epoch",
-            logging_strategy="epoch",
+            # logging_strategy="epoch",
             include_inputs_for_metrics=True,
             remove_unused_columns=False,
             predict_with_generate=True,
@@ -64,8 +65,6 @@ class TunerFactories:
 
     def get_trainer(self, **kwargs):
         trainer = self.trainer_cls(**kwargs)
-        trainer.add_callback(LogParametersTrainedCallback(trainer))
-        trainer.add_callback(SavePredictionsCallback())
         return trainer
 
 
@@ -79,6 +78,7 @@ class RayTuner:
         model = self.factories.get_model(config, tokenizer)
         train_dataset = self.factories.get_train_dataset(config, tokenizer)
         eval_dataset = self.factories.get_eval_dataset(config, tokenizer)
+        test_dataset = self.factories.get_test_dataset(config, tokenizer)
         data_collators = self.factories.get_datacollators(tokenizer, config)
         compute_metrics = self.factories.get_compute_metrics(tokenizer)
 
@@ -94,6 +94,10 @@ class RayTuner:
             **data_collators,
         )
 
+        trainer.add_callback(LogParametersTrainedCallback(trainer))
+        trainer.add_callback(
+            TestModelEachEpochCallback(trainer, test_dataset=test_dataset)
+        )
         trainer.add_callback(RayTrainReportCallback())
         trainer = prepare_trainer(trainer)
         trainer.train()
@@ -106,7 +110,7 @@ class RayTuner:
         mode,
         num_samples=1,
         grace_period=None,
-        num_to_keep=1,
+        num_to_keep=None,
         overwrite=False,
         num_workers=None,
         use_gpu=None,
@@ -167,4 +171,4 @@ class RayTuner:
                 ),
             )
 
-        result_grid = tuner.fit()
+        return tuner.fit()

@@ -3,12 +3,12 @@ from tempfile import TemporaryDirectory
 
 import torch
 from adapters import init
-from adapters.composition import MultiTask
 from adapters.configuration.adapter_config import (
     MTLLoRAConfig,
     MultiTaskConfigUnion,
 )
 from adapters.context import ForwardContext
+from datasets import Dataset
 from ray import tune
 from transformers.models.auto.configuration_auto import AutoConfig
 from transformers.models.auto.tokenization_auto import AutoTokenizer
@@ -103,7 +103,14 @@ class LlamaTunerFactories(TunerFactories):
         return eval_dataset
 
     def get_test_dataset(self, config, tokenizer):
-        raise NotImplementedError
+        tasks = config["task_names"]
+        eval_dataset = {
+            t: Dataset.from_list(
+                [{"src": "OK", "dst": "ok", "task_ids": i} for _ in range(10)]
+            )
+            for i, t in enumerate(tasks)
+        }
+        return eval_dataset
 
     def get_compute_metrics(self, tokenizer):
         def compute_metrics(eval_pred):
@@ -126,12 +133,12 @@ class TestRayTuner(unittest.TestCase):
     def test_hp_search(self):
         with TemporaryDirectory() as tmpdirname:
             ray_tune = RayTuner(LlamaTunerFactories())
-            ray_tune.hp_search(
+            result = ray_tune.hp_search(
                 storage_path=tmpdirname,
                 metric="eval_a_dummy_score",
                 mode="max",
                 expe_name="test_hp_search",
-                num_samples=4,
+                num_samples=2,
                 num_to_keep=2,
             )
-            __import__("pdb").set_trace()
+            self.assertListEqual(result.errors, [])

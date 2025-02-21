@@ -10,12 +10,14 @@ from transformers.trainer_utils import EvalPrediction
 from expes.adapter_trainer import AdapterTrainer, Seq2SeqAdapterTrainer
 from expes.callbacks import (
     LogParametersTrainedCallback,
+    RayTrainReportCallback,
     SavePredictionsCallback,
+    TestModelEachEpochCallback,
 )
 from expes.metric import TEXT_METRIC_KEY
 from expes.training_args import TrainingArguments
 
-from ..utils import get_dataset, lorem_ipsum_dataset
+from ..utils import get_dataset
 
 
 class BaseTestTrainer:
@@ -65,6 +67,7 @@ class BaseTestTrainer:
             output_dir=output_dir,
             do_train=True,
             eval_strategy="epoch",
+            save_strategy="epoch",
             learning_rate=lr,
             num_train_epochs=num_train_epochs,
             use_cpu=True,
@@ -90,8 +93,9 @@ class BaseTestTrainer:
             ),
             **kwargs,
         )
-        trainer.add_callback(SavePredictionsCallback)
         trainer.add_callback(LogParametersTrainedCallback(trainer))
+        trainer.add_callback(TestModelEachEpochCallback(trainer, eval_dataset))
+        trainer.add_callback(SavePredictionsCallback())
         trainer.train()
 
     def run_train_test(
@@ -168,10 +172,11 @@ class BaseTestTrainer:
                         adapter_name,
                         filter_keys,
                     )
+                    __import__("pdb").set_trace()
 
     def run_test_compute_metrics(self, eval_pred, tokenizer):
         if hasattr(tokenizer, "eval_pred_manager"):
-            eval_pred: EvalPrediction = tokenizer.eval_pred_manager(eval_pred)
+            eval_pred = tokenizer.eval_pred_manager(eval_pred)
 
         return {
             "dummy_score": 1.0,
