@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import torch
-from adapters.trainer import AdapterTrainer
 from ray import tune
 from ray.train import CheckpointConfig, RunConfig, ScalingConfig
 from ray.train.huggingface.transformers import (
@@ -14,58 +13,9 @@ from ray.tune.schedulers.async_hyperband import ASHAScheduler
 
 from expes.callbacks import (
     LogParametersTrainedCallback,
-    SavePredictionsCallback,
     TestModelEachEpochCallback,
 )
-
-
-class TunerFactories:
-    trainer_cls = None
-    training_args_cls = None
-
-    def get_hp_space(self, **kwargs):
-        raise NotImplementedError
-
-    def get_tokenizer(self, config):
-        raise NotImplementedError
-
-    def get_model(self, config, tokenizer):
-        raise NotImplementedError
-
-    def get_train_dataset(self, config, tokenizer):
-        raise NotImplementedError
-
-    def get_eval_dataset(self, config, tokenizer):
-        raise NotImplementedError
-
-    def get_test_dataset(self, config, tokenizer):
-        raise NotImplementedError
-
-    def get_datacollators(self, tokenizer, config, **kwargs):
-        raise NotImplementedError
-
-    def get_compute_metrics(self, tokenizer):
-        raise NotImplementedError
-
-    def get_training_args(self, config):
-        return self.training_args_cls(
-            output_dir=".",
-            eval_strategy="epoch",
-            save_strategy="epoch",
-            # logging_strategy="epoch",
-            include_inputs_for_metrics=True,
-            remove_unused_columns=False,
-            predict_with_generate=True,
-            include_for_metrics=["inputs"],
-            push_to_hub=False,
-            disable_tqdm=True,
-            report_to="none",
-            **config.get("training_args", {}),
-        )
-
-    def get_trainer(self, **kwargs):
-        trainer = self.trainer_cls(**kwargs)
-        return trainer
+from expes.tuner_factory import TunerFactories
 
 
 class RayTuner:
