@@ -26,11 +26,15 @@ class RayTuner:
     def train_func(self, config):
         tokenizer = self.factories.get_tokenizer(config)
         model = self.factories.get_model(config, tokenizer)
-        train_dataset = self.factories.get_train_dataset(config, tokenizer)
-        eval_dataset = self.factories.get_eval_dataset(config, tokenizer)
-        test_dataset = self.factories.get_test_dataset(config, tokenizer)
+
         data_collators = self.factories.get_datacollators(tokenizer, config)
+
         compute_metrics = self.factories.get_compute_metrics(tokenizer)
+
+        datasets = self.factories.get_datasets(config, tokenizer)
+        train_dataset = datasets.get("train")
+        eval_dataset = datasets.get("validation")
+        test_dataset = datasets.get("test")
 
         training_args = self.factories.get_training_args(config)
 

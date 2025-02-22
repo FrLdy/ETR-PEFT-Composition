@@ -13,6 +13,30 @@ from scipy.stats import hmean
 TEXT_METRIC_KEY = "texts"
 
 
+def compute_metrics(eval_pred, metrics_fn, tokenizer):
+    eval_pred = tokenizer.eval_pred_manager(eval_pred)
+    inputs, labels, predictions = (
+        eval_pred.inputs,
+        eval_pred.label_ids,
+        eval_pred.predictions,
+    )
+    metrics = metrics_fn(
+        predictions=predictions, references=labels, sources=inputs
+    )
+
+    metrics.update(
+        {
+            TEXT_METRIC_KEY: {
+                "inputs": inputs,
+                "labels": labels,
+                "predictions": predictions,
+            },
+        }
+    )
+
+    return metrics
+
+
 def load_nlp(lang: Literal["en", "fr"] = "en"):
     spacy_models = {"en": "en_core_web_md", "fr": "fr_core_news_md"}
     td_components = ["readability"]
