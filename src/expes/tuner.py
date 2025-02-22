@@ -27,7 +27,7 @@ class RayTuner:
         tokenizer = self.factories.get_tokenizer(config)
         model = self.factories.get_model(config, tokenizer)
 
-        data_collators = self.factories.get_datacollators(tokenizer, config)
+        data_collators = self.factories.get_datacollators(tokenizer, model)
 
         compute_metrics = self.factories.get_compute_metrics(tokenizer)
 
@@ -38,7 +38,7 @@ class RayTuner:
 
         training_args = self.factories.get_training_args(config)
 
-        trainer = self.factories.get_trainer(
+        trainer = self.factories.trainer_cls(
             model=model,
             args=training_args,
             train_dataset=train_dataset,

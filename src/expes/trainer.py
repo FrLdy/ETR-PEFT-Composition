@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from packaging import version
 from torch.utils.data import DataLoader, Dataset, IterableDataset
+from transformers import Seq2SeqTrainer  # noqa
 from transformers import PreTrainedModel
 from transformers import Trainer as HFTrainer
 from transformers.data.data_collator import DataCollator
