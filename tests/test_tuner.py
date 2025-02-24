@@ -2,138 +2,54 @@ import unittest
 from tempfile import TemporaryDirectory
 
 import torch
-from adapters import init
+from adapters.composition import MultiTask
 from adapters.configuration.adapter_config import (
     MTLLoRAConfig,
     MultiTaskConfigUnion,
 )
-from adapters.context import ForwardContext
-from datasets import Dataset
 from ray import tune
-from transformers.models.auto.configuration_auto import AutoConfig
-from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaForCausalLM
 
-from expes.adapter_trainer import AdapterTrainer
-from expes.chat_template import ChatTemplate
-from expes.datacollator import DataCollatorForSeq2SeqCausalLM
-from expes.metric import TEXT_METRIC_KEY
-from expes.training_args import TrainingArguments
-from expes.tuner import RayTuner, TunerFactories
+from expes.chat_template import causal_chat_template
+from expes.tuner import RayTuner
+from expes.tuner_factory import TunerFactories, TuningConfig
 
-from .utils import get_dataset, lorem_ipsum_dataset
+from .utils import get_mtl_dataset
 
 
-class LlamaTunerFactories(TunerFactories):
-    checkpoint = "meta-llama/Llama-2-7b-hf"
-    trainer_cls = AdapterTrainer
-    training_args_cls = TrainingArguments
-
-    def get_hp_space(self, **kwargs):
-        return {
-            "r": tune.randint(4, 50),
-            "task_names": ["a", "b", "c"],
-            "training_args": {"num_train_epochs": 2},
-        }
-
-    def get_tokenizer(self, config):
-
-        tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
-        tokenizer.add_special_tokens({"pad_token": "<pad>"})
-        tokenizer = ChatTemplate().apply_to_tokenizer(tokenizer)
-
-        return tokenizer
-
-    def get_model(self, config, tokenizer):
-        model_config = AutoConfig.from_pretrained(self.checkpoint)
-        model_config.update(
-            LlamaConfig(
-                hidden_size=32,
-                num_hidden_layers=5,
-                num_attention_heads=4,
-                intermediate_size=37,
-                hidden_act="gelu",
-            ).to_dict()
-        )
-        model = LlamaForCausalLM(model_config)
-        model.resize_token_embeddings(len(tokenizer))
-
-        ForwardContext.context_args.add("task_ids")
-        init(model)
-        adapter_name = "union_1"
-        model.add_adapter(
-            adapter_name,
-            MultiTaskConfigUnion(
-                base_config=MTLLoRAConfig(r=config["r"]),
-                task_names=config["task_names"],
-            ),
-        )
-        model.set_active_adapters(adapter_name)
-        model.train_adapter(adapter_name)
-
-        return model
-
-    def get_datacollators(self, tokenizer, config, **kwargs):
-        return {
-            "data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-            ),
-            "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
-                tokenizer=tokenizer,
-                loss_completion_only=True,
-                eval_mode=True,
-            ),
-        }
-
-    def get_train_dataset(self, config, tokenizer):
-        n_tasks = len(config["task_names"])
-        dataset = lorem_ipsum_dataset(25)
-        dataset_size = len(dataset)
-        dataset = dataset.add_column(
-            "task_ids",
-            torch.randint(0, n_tasks, (dataset_size,)).tolist(),
-        )
-        return dataset
-
-    def get_eval_dataset(self, config, tokenizer):
-        tasks = config["task_names"]
-        eval_dataset = {t: get_dataset(task_id=i) for i, t in enumerate(tasks)}
-        return eval_dataset
-
-    def get_test_dataset(self, config, tokenizer):
-        tasks = config["task_names"]
-        eval_dataset = {
-            t: Dataset.from_list(
-                [{"src": "OK", "dst": "ok", "task_ids": i} for _ in range(10)]
-            )
-            for i, t in enumerate(tasks)
-        }
-        return eval_dataset
-
-    def get_compute_metrics(self, tokenizer):
-        def compute_metrics(eval_pred):
-            if hasattr(tokenizer, "eval_pred_manager"):
-                eval_pred = tokenizer.eval_pred_manager(eval_pred)
-
-            return {
-                "dummy_score": 1.0,
-                TEXT_METRIC_KEY: {
-                    "inputs": eval_pred.inputs,
-                    "labels": eval_pred.label_ids,
-                    "predictions": eval_pred.predictions,
-                },
-            }
-
-        return compute_metrics
+def prepare_datasets(config: TuningConfig, tokenizer):
+    return get_mtl_dataset(
+        config.tasks,
+        [torch.randint(10, 15, (3,)).tolist() for _ in config.tasks],
+    )
 
 
 class TestRayTuner(unittest.TestCase):
+
     def test_hp_search(self):
+        tasks = ["a", "b", "c"]
+        tuning_config = TuningConfig(
+            prepare_dataset=prepare_datasets,
+            model_config=LlamaConfig(num_hidden_layers=2),
+            tokenizer_checkpoint="meta-llama/Llama-2-7b-hf",
+            tasks=tasks,
+            adapter_configs={
+                "union1": MultiTaskConfigUnion(
+                    task_names=tasks,
+                    base_config=MTLLoRAConfig(r=tune.randint(2, 14)),
+                )
+            },
+            adapter_activation=MultiTask(*tasks),
+            pad_token="<pad>",
+            chat_template=causal_chat_template,
+            training_args={
+                "lr": tune.choice([0.001, 0.003, 0.005]),
+            },
+        )
         with TemporaryDirectory() as tmpdirname:
-            ray_tune = RayTuner(LlamaTunerFactories())
-            result = ray_tune.hp_search(
+            factories = TunerFactories(tuning_config)
+            tuner = RayTuner(factories)
+            result = tuner.hp_search(
                 storage_path=tmpdirname,
                 metric="eval_a_dummy_score",
                 mode="max",

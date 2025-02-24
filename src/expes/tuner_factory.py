@@ -1,17 +1,19 @@
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from functools import partial
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type, Union
 
-from adapters.configuration.adapter_config import AdapterConfig
-from adapters.context import ForwardContext
-from adapters.wrappers.model import init
+from adapters import AdapterCompositionBlock, AdapterConfig, init
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollatorForSeq2Seq
 from transformers.models.auto.modeling_auto import AutoModel
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from expes.adapter_trainer import AdapterTrainer, Seq2SeqAdapterTrainer
+from expes.callbacks import (
+    LogParametersTrainedCallback,
+    TestModelEachEpochCallback,
+)
 from expes.chat_template import ChatTemplate
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
 from expes.dataset import (
@@ -32,6 +34,7 @@ HPS_KEY_TRAINING_ARGS = "trainer_config"
 
 @dataclass
 class TuningConfig:
+    prepare_dataset: Callable
     is_causal_lm: bool = True
     model_config: Optional[PretrainedConfig] = None
     model_checkpoint: Optional[str] = None
@@ -43,10 +46,11 @@ class TuningConfig:
             DS_KEY_ORANGESUM,
         ]
     )
-    training_args: Dict = field(default_factory=dict)
     adapter_configs: Dict = field(default_factory=dict)
+    adapter_activation: Optional[Union[str, AdapterCompositionBlock]] = None
     pad_token: Optional[str] = None
     chat_template: Optional[ChatTemplate] = None
+    training_args: Dict = field(default_factory=dict)
     trainer_cls: Type[Trainer] = field(default=Trainer)
     training_args_cls: Type[TrainingArguments] = field(
         default=TrainingArguments
@@ -107,24 +111,23 @@ class TunerFactories:
         if self.add_pad_token(config, tokenizer):
             model.resize_token_embeddings(len(tokenizer))
 
-        if config.adapter_configs:
+        if config.adapter_configs and config.adapter_activation:
             model = self.setup_adapters(model, config)
 
         return model
 
     def setup_adapters(self, model, config):
-        ForwardContext.context_args.add("task_ids")
         init(model)
         configs = config.adapter_configs
-        adapter_name = list(configs.keys())[0]
-        adapter_config = AdapterConfig.load(configs[adapter_name])
-        model.add_adapter(adapter_name, adapter_config, set_active=True)
+        for adapter_name, adapter_conf in configs:
+            adapter_conf = AdapterConfig.load(adapter_conf)
+            model.add_adapter(adapter_name, adapter_conf)
+        model.active_adapters = config.adapter_activation
+
         return model
 
-    def get_datasets(self, config, tokenizer):
-        interleave = config["data"]["interleave"]
-        dataset = base_mtl_dataset(self.tasks, interleave)
-        return dataset
+    def get_datasets(self, config: TuningConfig, tokenizer):
+        return config.prepare_dataset(config, tokenizer)
 
     def get_datacollators(self, tokenizer, model):
         if self.is_causal_lm:
@@ -168,3 +171,12 @@ class TunerFactories:
             report_to="none",
             **config.training_args,
         )
+
+    def get_trainer(self, config: TuningConfig, **kwargs):
+        test_dataset = kwargs.pop("test_dataset", None)
+        trainer = config.trainer_cls(**kwargs)
+        trainer.add_callback(LogParametersTrainedCallback(trainer))
+        if test_dataset is not None:
+            trainer.add_callback(
+                TestModelEachEpochCallback(trainer, test_dataset=test_dataset)
+            )

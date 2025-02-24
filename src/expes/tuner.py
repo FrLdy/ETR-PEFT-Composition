@@ -11,10 +11,6 @@ from ray.train.huggingface.transformers import (
 from ray.train.torch import TorchTrainer
 from ray.tune.schedulers.async_hyperband import ASHAScheduler
 
-from expes.callbacks import (
-    LogParametersTrainedCallback,
-    TestModelEachEpochCallback,
-)
 from expes.tuner_factory import TunerFactories
 
 
@@ -24,6 +20,7 @@ class RayTuner:
         self.factories = factories
 
     def train_func(self, config):
+        config = self.factories.tuning_config.__class__(**config)
         tokenizer = self.factories.get_tokenizer(config)
         model = self.factories.get_model(config, tokenizer)
 
@@ -38,7 +35,7 @@ class RayTuner:
 
         training_args = self.factories.get_training_args(config)
 
-        trainer = self.factories.trainer_cls(
+        trainer = self.factories.get_trainer(
             model=model,
             args=training_args,
             train_dataset=train_dataset,
@@ -46,12 +43,9 @@ class RayTuner:
             processing_class=tokenizer,
             compute_metrics=compute_metrics,
             **data_collators,
+            test_dataset=test_dataset,
         )
 
-        trainer.add_callback(LogParametersTrainedCallback(trainer))
-        trainer.add_callback(
-            TestModelEachEpochCallback(trainer, test_dataset=test_dataset)
-        )
         trainer.add_callback(RayTrainReportCallback())
         trainer = prepare_trainer(trainer)
         trainer.train()
