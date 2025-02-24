@@ -2,7 +2,7 @@ import random
 
 import lorem
 import torch
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 from transformers.testing_utils import torch_device
 
 global_rng = random.Random()
@@ -72,3 +72,16 @@ def get_dataset(n_tasks=None, task_id=None):
             "task_ids", torch.tensor([task_id] * dataset_size).tolist()
         )
     return dataset
+
+
+def get_mtl_dataset(tasks, dataset_sizes):
+    datasets = {}
+    for task, (train, dev, test) in zip(tasks, dataset_sizes):
+        datasets[task] = DatasetDict(
+            {
+                "train": lorem_ipsum_dataset(train),
+                "validation": lorem_ipsum_dataset(dev),
+                "test": lorem_ipsum_dataset(test),
+            }
+        )
+    return DatasetDict(datasets)

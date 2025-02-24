@@ -109,12 +109,12 @@ def load_etr_fr(
 
 def build_mtl_dataset(
     datasets: Dict[str, DatasetDict],
-    tasks: List[str],
-    interleave: Optional[
+    tasks: List[str] = None,
+    stopping_strategy: Optional[
         Literal["concatenate", "first_exhausted", "all_exhausted"]
     ] = None,
 ):
-
+    tasks = tasks or list(datasets.keys())
     datasets = {
         ds_name: datasets[ds_name].map(lambda _: {"task_ids": i})
         for i, ds_name in enumerate(tasks)
@@ -131,14 +131,16 @@ def build_mtl_dataset(
     }
 
     def group_by_split(split, interleave=None):
-        ds_split = {name: dset[split] for name, dset in datasets.items()}
+        ds_split = DatasetDict(
+            {name: dset[split] for name, dset in datasets.items()}
+        )
         if interleave is not None:
-            ds_split = concat_fn[interleave](list(datasets.values()))
+            ds_split = concat_fn[interleave](list(ds_split.values()))
         return ds_split
 
     return DatasetDict(
         {
-            "train": group_by_split("train", interleave),
+            "train": group_by_split("train", stopping_strategy),
             "test": group_by_split("test"),
             "validation": group_by_split("validation"),
         }

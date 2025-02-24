@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+from datasets import DatasetDict
+
 from expes.dataset import (
     DST_KEY,
     SRC_KEY,
@@ -10,17 +12,7 @@ from expes.dataset import (
     load_wikilarge_fr,
 )
 
-from .utils import lorem_ipsum_dataset
-
-
-def get_datasets():
-    dataset_names = ["ds1", "ds2", "ds3"]
-    dataset_sizes = [10, 34, 50]
-    datasets = {
-        name: lorem_ipsum_dataset(size)
-        for (name, size) in zip(dataset_names, dataset_sizes)
-    }
-    return datasets, dataset_names
+from .utils import get_mtl_dataset, lorem_ipsum_dataset
 
 
 class TestLoadDatasets(unittest.TestCase):
@@ -59,28 +51,37 @@ class TestLoadDatasets(unittest.TestCase):
 
 
 class TestDataset(unittest.TestCase):
+    splits = ["train", "validation", "test"]
+    tasks = ["ds1", "ds2", "ds3"]
+    dataset_sizes = [(10, 11, 12), (13, 14, 15), (16, 17, 18)]
+
+    def get_datasets(self):
+        return get_mtl_dataset(self.tasks, self.dataset_sizes)
+
+    def run_base_tests(self, mtl_dataset, splits=None):
+        self.assertEqual(len(mtl_dataset), 3)
+        self.assertEqual(set(mtl_dataset.keys()), set(self.splits))
+        splits = splits or self.splits
+        for split in splits:
+            for task in self.tasks:
+                self.assertIn(task, mtl_dataset[split])
+
     def test_build_mtl_dataset(self):
-        datasets, task_ids_map = get_datasets()
-        mtl_dataset = build_mtl_dataset(
-            datasets, task_ids_map, stopping_strategy=None
-        )
-        assert len(mtl_dataset) == sum(len(ds) for ds in datasets.values())
+        datasets = self.get_datasets()
+        mtl_dataset = build_mtl_dataset(datasets, stopping_strategy=None)
+        self.run_base_tests(mtl_dataset)
 
     def test_build_mtl_dataset_interleave_f_exhausted(self):
-        datasets, task_ids_map = get_datasets()
+        datasets = self.get_datasets()
 
         mtl_dataset = build_mtl_dataset(
-            datasets, task_ids_map, stopping_strategy="first_exhausted"
+            datasets, stopping_strategy="first_exhausted"
         )
-        assert len(mtl_dataset) == min(
-            len(ds) for ds in datasets.values()
-        ) * len(datasets)
+        self.run_base_tests(mtl_dataset, splits=["validation", "test"])
 
     def test_build_mtl_dataset_interleave_all_exhausted(self):
-        datasets, task_ids_map = get_datasets()
+        datasets = self.get_datasets()
         mtl_dataset = build_mtl_dataset(
-            datasets, task_ids_map, stopping_strategy="all_exhausted"
+            datasets, stopping_strategy="all_exhausted"
         )
-        assert len(mtl_dataset) == max(
-            len(ds) for ds in datasets.values()
-        ) * len(datasets)
+        self.run_base_tests(mtl_dataset, splits=["validation", "test"])
