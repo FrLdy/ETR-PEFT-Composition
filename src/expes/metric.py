@@ -10,6 +10,8 @@ import textdescriptives as td
 from datasets.utils.py_utils import Literal
 from scipy.stats import hmean
 
+nltk.download("punkt_tab")
+
 TEXT_METRIC_KEY = "texts"
 
 
@@ -193,7 +195,7 @@ class FALCMetrics:
         }
 
         res.update(
-            self.sari_r2_bertscore_hmean(
+            self.sari_rouge_bertscore_hmean(
                 res["sari"], res["rougeL"], res["bertscore_f1"]
             )
         )
