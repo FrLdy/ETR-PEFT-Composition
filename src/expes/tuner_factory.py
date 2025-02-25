@@ -19,12 +19,7 @@ from expes.callbacks import (
 )
 from expes.chat_template import ChatTemplate
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
-from expes.dataset import (
-    DS_KEY_ETR_FR,
-    DS_KEY_ORANGESUM,
-    DS_KEY_WIKILARGE_FR,
-    base_mtl_dataset,
-)
+from expes.dataset import DS_KEY_ETR_FR, DS_KEY_ORANGESUM, DS_KEY_WIKILARGE_FR
 from expes.eval_pred_manager import Seq2SeqEvalPredManager
 from expes.metric import FALCMetrics, compute_metrics
 from expes.trainer import Seq2SeqTrainer, Trainer
@@ -52,29 +47,40 @@ class TuningConfig:
     )
     adapter_configs: Dict = field(default_factory=dict)
     adapter_activation: Optional[Union[str, AdapterCompositionBlock]] = None
+    generation_config: Dict = field(default_factory=dict)
     pad_token: Optional[str] = None
     chat_template: Optional[ChatTemplate] = None
     training_args: Dict = field(default_factory=dict)
-    trainer_cls: Type[Trainer] = field(default=Trainer)
-    training_args_cls: Type[TrainingArguments] = field(
-        default=TrainingArguments
-    )
+    trainer_cls: Optional[Type[Trainer]] = None
+    training_args_cls: Optional[Type[TrainingArguments]] = None
 
     def __post_init__(self):
-        if self.tokenizer_checkpoint is None:
+        assert self.model_config or self.model_checkpoint
+        if self.model_checkpoint is None:
+            assert self.tokenizer_checkpoint
+        if (
+            self.tokenizer_checkpoint is None
+            and self.model_checkpoint is not None
+        ):
             self.tokenizer_checkpoint = self.model_checkpoint
 
-        if self.adapter_configs is not None:
-            self.trainer_cls = (
-                AdapterTrainer if self.is_causal_lm else Seq2SeqAdapterTrainer
-            )
-        else:
-            self.trainer_cls = Trainer if self.is_causal_lm else Seq2SeqTrainer
+        if self.trainer_cls is None:
+            if self.adapter_configs is not None:
+                self.trainer_cls = (
+                    AdapterTrainer
+                    if self.is_causal_lm
+                    else Seq2SeqAdapterTrainer
+                )
+            else:
+                self.trainer_cls = (
+                    Trainer if self.is_causal_lm else Seq2SeqTrainer
+                )
 
-        if issubclass(self.trainer_cls, Trainer):
-            self.training_args_cls = TrainingArguments
-        elif issubclass(self.trainer_cls, Seq2SeqTrainer):
-            self.training_args_cls = Seq2SeqTrainingArguments
+        if self.training_args_cls is None:
+            if issubclass(self.trainer_cls, Trainer):
+                self.training_args_cls = TrainingArguments
+            elif issubclass(self.trainer_cls, Seq2SeqTrainer):
+                self.training_args_cls = Seq2SeqTrainingArguments
 
 
 @dataclass
@@ -113,9 +119,16 @@ class TunerFactories:
 
         if config.pad_token:
             model.resize_token_embeddings(len(tokenizer))
+            model.generation_config.pad_token_id = tokenizer.pad_token_id
 
         if config.adapter_configs and config.adapter_activation:
             model = self.setup_adapters(model, config)
+
+        if config.generation_config:
+            unused_params = model.generation_config.update(
+                **config.generation_config
+            )
+            assert unused_params == {}
 
         return model
 

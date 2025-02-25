@@ -1,8 +1,9 @@
+import os
 import unittest
+from copy import deepcopy
 from dataclasses import asdict
 from tempfile import TemporaryDirectory
 
-import torch
 from adapters.composition import MultiTask
 from adapters.configuration.adapter_config import (
     MTLLoRAConfig,
@@ -13,63 +14,116 @@ from transformers.models.llama.configuration_llama import LlamaConfig
 from transformers.models.llama.modeling_llama import LlamaForCausalLM
 
 from expes.chat_template import causal_chat_template
-from expes.dataset import build_mtl_dataset
-from expes.tuner import RayTuner
+from expes.dataset import (
+    DS_KEY_ETR_FR,
+    DS_KEY_ORANGESUM,
+    DS_KEY_WIKILARGE_FR,
+    build_mtl_dataset,
+    get_datasets,
+)
+from expes.tuner import RayTuner, RayTunerConfig
 from expes.tuner_factory import TunerFactories, TuningConfig
-
-from .utils import get_mtl_dataset
 
 
 def prepare_datasets(config: TuningConfig, tokenizer):
-    dataset = get_mtl_dataset(
-        config.tasks,
-        [torch.randint(10, 15, (3,)).tolist() for _ in config.tasks],
-    )
-    dataset = build_mtl_dataset(
-        dataset, config.tasks, stopping_strategy="concatenate"
-    )
-    return dataset
+    datasets = get_datasets(tasks=config.tasks)
+    for split in datasets:
+        for task in datasets[split]:
+            datasets[split][task] = datasets[split][task].select(range(5))
+
+    return build_mtl_dataset(datasets, stopping_strategy="concatenate")
 
 
 class TestRayTuner(unittest.TestCase):
+    tasks = [DS_KEY_ETR_FR, DS_KEY_ORANGESUM, DS_KEY_WIKILARGE_FR]
+    tuning_config = TuningConfig(
+        prepare_dataset=prepare_datasets,
+        model_class=LlamaForCausalLM,
+        model_config=LlamaConfig(
+            hidden_size=32,
+            num_hidden_layers=5,
+            num_attention_heads=4,
+            intermediate_size=37,
+            hidden_act="gelu",
+        ),
+        tokenizer_checkpoint="meta-llama/Llama-2-7b-hf",
+        tasks=tasks,
+        adapter_configs={
+            "union1": MultiTaskConfigUnion(
+                task_names=tasks,
+                base_config=MTLLoRAConfig(r=2),
+            )
+        },
+        adapter_activation=MultiTask(*tasks),
+        pad_token="<pad>",
+        chat_template=causal_chat_template,
+        training_args={
+            "learning_rate": 0.001,
+            "num_train_epochs": 2,
+        },
+        generation_config={"max_new_tokens": 20},
+    )
 
-    def test_hp_search(self):
-        tasks = ["a", "b", "c"]
-        tuning_config = TuningConfig(
-            prepare_dataset=prepare_datasets,
-            model_class=LlamaForCausalLM,
-            model_config=LlamaConfig(
-                hidden_size=32,
-                num_hidden_layers=5,
-                num_attention_heads=4,
-                intermediate_size=37,
-                hidden_act="gelu",
-            ),
-            tokenizer_checkpoint="meta-llama/Llama-2-7b-hf",
-            tasks=tasks,
-            adapter_configs={
-                "union1": MultiTaskConfigUnion(
-                    task_names=tasks,
-                    base_config=MTLLoRAConfig(r=2),
-                )
-            },
-            adapter_activation=MultiTask(*tasks),
-            pad_token="<pad>",
-            chat_template=causal_chat_template,
-            training_args={
-                "learning_rate": 0.001,
-            },
-        )
+    def test_train_func(self):
         with TemporaryDirectory() as tmpdirname:
-            factories = TunerFactories(tuning_config)
+            factories = TunerFactories(self.tuning_config)
             tuner = RayTuner(factories)
-            tuner.train_func(asdict(tuning_config))
-            # result = tuner.hp_search(
-            #     storage_path=tmpdirname,
-            #     metric="eval_a_dummy_score",
-            #     mode="max",
-            #     expe_name="test_hp_search",
-            #     num_samples=2,
-            #     num_to_keep=2,
-            # )
-            # self.assertListEqual(result.errors, [])
+            os.chdir(tmpdirname)
+            tuner.train_func(asdict(self.tuning_config))
+
+    def test_call(self):
+        with TemporaryDirectory() as tmpdirname:
+            tuning_config = deepcopy(self.tuning_config)
+            tuning_config.adapter_configs["union1"] = MultiTaskConfigUnion(
+                task_names=self.tasks,
+                base_config=MTLLoRAConfig(r=tune.randint(10, 50)),
+            )
+            tuning_config.training_args["learning_rate"] = tune.choice(
+                [0.001, 0.005, 0.323]
+            )
+            factories = TunerFactories(self.tuning_config)
+            tuner_config = RayTunerConfig(
+                metric="eval_etr_fr_sari_rouge_bertf1_hmean",
+                mode="max",
+                num_samples=2,
+                robustness_num_samples=2,
+                num_to_keep=2,
+            )
+            tuner = RayTuner(
+                factories=factories,
+                storage_path=tmpdirname,
+                expe_name="test_hp_search",
+                tuner_config=tuner_config,
+            )
+            results = tuner()
+
+            with self.subTest(restype="hp_search_results"):
+                self.run_result_grid_tests(results.hp_search_results)
+
+            with self.subTest(restype="best_config_robustness_results"):
+                self.run_result_grid_tests(
+                    results.best_config_robustness_results
+                )
+
+    def run_result_grid_tests(self, result_grid):
+        self.assertListEqual(result_grid.errors, [])
+
+        required_metrics = [
+            "test_{task}_texts",
+            "eval_{task}_texts",
+        ]
+        for result in result_grid._results:
+            for task in self.tasks:
+                for required_metric in required_metrics:
+                    self.assertIn(
+                        required_metric.format(task=task), result.metrics
+                    )
+
+                test_texts = result.metrics[
+                    "test_{task}_texts".format(task=task)
+                ]
+                eval_texts = result.metrics[
+                    "eval_{task}_texts".format(task=task)
+                ]
+                self.assertNotEqual(test_texts["inputs"], eval_texts["inputs"])
+                self.assertNotEqual(test_texts["labels"], eval_texts["labels"])
