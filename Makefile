@@ -21,3 +21,6 @@ test:
 	python -m pytest -n auto --dist=loadfile -s -v ./tests/
 	python -c "import transformers; print(transformers.__version__)"
 
+install-spacy-models:
+	python -m spacy download fr_core_news_md
+	python -m spacy download en_core_web_md
