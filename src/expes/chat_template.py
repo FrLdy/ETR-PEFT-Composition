@@ -4,7 +4,6 @@ from functools import partial
 from expes.eval_pred_manager import ChatEvalPredictionManager
 
 
-@dataclass
 class ChatTemplate:
     input_prefix = "### Input:"
     output_prefix = "### Output:"
