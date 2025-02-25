@@ -4,8 +4,11 @@ from functools import partial
 from typing import Dict, List, Optional, Type, Union
 
 from adapters import AdapterCompositionBlock, AdapterConfig, init
+from adapters.configuration import adapter_config
+from ray.util import pdb
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollatorForSeq2Seq
+from transformers.modeling_utils import PreTrainedModel
 from transformers.models.auto.modeling_auto import AutoModel
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
@@ -35,6 +38,7 @@ HPS_KEY_TRAINING_ARGS = "trainer_config"
 @dataclass
 class TuningConfig:
     prepare_dataset: Callable
+    model_class: Union[type, Type[PreTrainedModel]]
     is_causal_lm: bool = True
     model_config: Optional[PretrainedConfig] = None
     model_checkpoint: Optional[str] = None
@@ -92,11 +96,10 @@ class TunerFactories:
         checkpoint = config.tokenizer_checkpoint or config.model_checkpoint
         tokenizer = AutoTokenizer.from_pretrained(checkpoint)
 
-        if self.add_pad_token(tokenizer):
+        if self.add_pad_token(config, tokenizer):
             tokenizer.add_special_tokens({"pad_token": config.pad_token})
-
-        if self.chat_template:
-            tokenizer = self.chat_template.apply_to_tokenizer(tokenizer)
+        if config.chat_template is not None:
+            tokenizer = config.chat_template.apply_to_tokenizer(tokenizer)
         else:
             tokenizer.eval_pred_manager = Seq2SeqEvalPredManager(tokenizer)
 
@@ -104,11 +107,11 @@ class TunerFactories:
 
     def get_model(self, config, tokenizer):
         if config.model_config:
-            model = AutoModel.from_config(config.model_config)
+            model = config.model_class(config.model_config)
         else:
-            model = AutoModel.from_pretrained(config.model_checkpoint)
+            model = config.model_class.from_pretrained(config.model_checkpoint)
 
-        if self.add_pad_token(config, tokenizer):
+        if config.pad_token:
             model.resize_token_embeddings(len(tokenizer))
 
         if config.adapter_configs and config.adapter_activation:
@@ -118,19 +121,22 @@ class TunerFactories:
 
     def setup_adapters(self, model, config):
         init(model)
-        configs = config.adapter_configs
-        for adapter_name, adapter_conf in configs:
+        adapter_configs = config.adapter_configs
+        for adapter_name, adapter_conf in adapter_configs.items():
             adapter_conf = AdapterConfig.load(adapter_conf)
             model.add_adapter(adapter_name, adapter_conf)
-        model.active_adapters = config.adapter_activation
+        model.active_adapters = config.adapter_activation or list(
+            adapter_configs.keys()
+        )
+        model.train_adapter(model.active_adapters)
 
         return model
 
     def get_datasets(self, config: TuningConfig, tokenizer):
         return config.prepare_dataset(config, tokenizer)
 
-    def get_datacollators(self, tokenizer, model):
-        if self.is_causal_lm:
+    def get_datacollators(self, config, tokenizer, model):
+        if config.is_causal_lm:
             return {
                 "data_collator": DataCollatorForSeq2SeqCausalLM(
                     tokenizer=tokenizer,
@@ -158,7 +164,7 @@ class TunerFactories:
         )
 
     def get_training_args(self, config):
-        return self.config.training_args_cls(
+        return config.training_args_cls(
             output_dir=".",
             eval_strategy="epoch",
             save_strategy="epoch",
@@ -180,3 +186,4 @@ class TunerFactories:
             trainer.add_callback(
                 TestModelEachEpochCallback(trainer, test_dataset=test_dataset)
             )
+        return trainer

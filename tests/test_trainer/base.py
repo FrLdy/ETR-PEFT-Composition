@@ -149,12 +149,9 @@ class BaseTestTrainer:
                 with TemporaryDirectory() as tmpdirname:
                     if adapter_config is not None:
                         adapter_name = adapter_config.__class__.__name__
-                        if isinstance(
-                            adapter_config, adapters.MultiTaskConfigUnion
-                        ):
-                            adapters.ForwardContext.context_args.add("task_ids")
                         adapters.init(model)
                         model.add_adapter(adapter_name, adapter_config)
+                        model.active_adapters = adapter_name
                         model.train_adapter(adapter_name)
 
                     state_dict_pre = deepcopy(model.state_dict())
@@ -172,7 +169,6 @@ class BaseTestTrainer:
                         adapter_name,
                         filter_keys,
                     )
-                    __import__("pdb").set_trace()
 
     def run_test_compute_metrics(self, eval_pred, tokenizer):
         if hasattr(tokenizer, "eval_pred_manager"):
