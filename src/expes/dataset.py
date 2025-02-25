@@ -158,11 +158,9 @@ DATASETS = {
 }
 
 
-def base_mtl_dataset(
-    tasks,
-    interleave: Optional[
-        Literal["concatenate", "first_exhausted", "all_exhausted"]
-    ] = None,
+def get_datasets(
+    tasks=None,
 ):
-    datasets = {task: DATASETS[task]() for task in tasks}
-    return build_mtl_dataset(datasets, tasks, interleave)
+    tasks = tasks or list(DATASETS.keys())
+    datasets = DatasetDict({task: DATASETS[task]() for task in tasks})
+    return datasets
