@@ -109,7 +109,7 @@ def load_etr_fr(
 
 def build_mtl_dataset(
     datasets: Dict[str, DatasetDict],
-    tasks: List[str] = None,
+    tasks: Optional[List[str]] = None,
     stopping_strategy: Optional[
         Literal["concatenate", "first_exhausted", "all_exhausted"]
     ] = None,
