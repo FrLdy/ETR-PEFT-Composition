@@ -22,10 +22,10 @@ from expes.dataset import (
     get_datasets,
 )
 from expes.tuner import RayTuner, RayTunerConfig
-from expes.tuner_factory import TunerFactories, TuningConfig
+from expes.tuner_factory import TrainFuncFactories, TrainingConfig
 
 
-def prepare_datasets(config: TuningConfig, tokenizer):
+def prepare_datasets(config: TrainingConfig, tokenizer):
     datasets = get_datasets(tasks=config.tasks)
     for split in datasets:
         for task in datasets[split]:
@@ -36,7 +36,7 @@ def prepare_datasets(config: TuningConfig, tokenizer):
 
 class TestRayTuner(unittest.TestCase):
     tasks = [DS_KEY_ETR_FR, DS_KEY_ORANGESUM, DS_KEY_WIKILARGE_FR]
-    tuning_config = TuningConfig(
+    tuning_config = TrainingConfig(
         prepare_dataset=prepare_datasets,
         model_class=LlamaForCausalLM,
         model_config=LlamaConfig(
@@ -66,7 +66,7 @@ class TestRayTuner(unittest.TestCase):
 
     def test_train_func(self):
         with TemporaryDirectory() as tmpdirname:
-            factories = TunerFactories(self.tuning_config)
+            factories = TrainFuncFactories(self.tuning_config)
             tuner = RayTuner(factories)
             os.chdir(tmpdirname)
             tuner.train_func(asdict(self.tuning_config))
@@ -81,7 +81,7 @@ class TestRayTuner(unittest.TestCase):
             tuning_config.training_args["learning_rate"] = tune.choice(
                 [0.001, 0.005, 0.323]
             )
-            factories = TunerFactories(self.tuning_config)
+            factories = TrainFuncFactories(self.tuning_config)
             tuner_config = RayTunerConfig(
                 metric="eval_etr_fr_sari_rouge_bertf1_hmean",
                 mode="max",

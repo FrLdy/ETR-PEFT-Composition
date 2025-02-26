@@ -4,12 +4,12 @@ from functools import partial
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
-from expes.tuner_factory import TuningConfig
+from expes.tuner_factory import TrainingConfig
 
 
 class TestTuningConfig(unittest.TestCase):
     partial_config = partial(
-        TuningConfig,
+        TrainingConfig,
         prepare_dataset=lambda x: x,
         model_class=PreTrainedModel,
     )

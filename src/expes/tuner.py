@@ -1,10 +1,8 @@
 import os
-from collections import namedtuple
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
-from unittest import result
 
 import torch
 from ray import tune
@@ -19,7 +17,7 @@ from ray.tune.result_grid import ResultGrid
 from ray.tune.schedulers.async_hyperband import ASHAScheduler
 from transformers.trainer import Trainer
 
-from expes.tuner_factory import TunerFactories
+from expes.tuner_factory import TrainFuncFactories
 
 
 @dataclass()
@@ -61,12 +59,12 @@ class RayTuner:
         self,
         storage_path: Path,
         expe_name: str,
-        factories: TunerFactories,
         tuner_config: RayTunerConfig,
+        factories: TrainFuncFactories,
     ) -> None:
-        self.tuner_config = tuner_config
         self.storage_path = Path(storage_path)
         self.expe_name = expe_name
+        self.tuner_config = tuner_config
         self.factories = factories
 
     def __call__(self) -> TunerResults:

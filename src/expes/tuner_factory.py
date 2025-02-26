@@ -31,7 +31,7 @@ HPS_KEY_TRAINING_ARGS = "trainer_config"
 
 
 @dataclass
-class TuningConfig:
+class TrainingConfig:
     prepare_dataset: Callable
     model_class: Union[type, Type[PreTrainedModel]]
     is_causal_lm: bool = True
@@ -84,9 +84,9 @@ class TuningConfig:
 
 
 @dataclass
-class TunerFactories:
+class TrainFuncFactories:
 
-    tuning_config: TuningConfig = field()
+    tuning_config: TrainingConfig = field()
 
     def get_hp_space(self, **kwargs):
         return asdict(self.tuning_config)
@@ -145,7 +145,7 @@ class TunerFactories:
 
         return model
 
-    def get_datasets(self, config: TuningConfig, tokenizer):
+    def get_datasets(self, config: TrainingConfig, tokenizer):
         return config.prepare_dataset(config, tokenizer)
 
     def get_datacollators(self, config, tokenizer, model):
@@ -191,7 +191,7 @@ class TunerFactories:
             **config.training_args,
         )
 
-    def get_trainer(self, config: TuningConfig, **kwargs):
+    def get_trainer(self, config: TrainingConfig, **kwargs):
         test_dataset = kwargs.pop("test_dataset", None)
         trainer = config.trainer_cls(**kwargs)
         trainer.add_callback(LogParametersTrainedCallback(trainer))
