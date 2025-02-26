@@ -8,15 +8,13 @@ import torch
 from ray import tune
 from ray.air.config import SampleRange
 from ray.train import CheckpointConfig, RunConfig, ScalingConfig
-from ray.train.huggingface.transformers import (
-    RayTrainReportCallback,
-    prepare_trainer,
-)
+from ray.train.huggingface.transformers import prepare_trainer
 from ray.train.torch import TorchTrainer
 from ray.tune.result_grid import ResultGrid
 from ray.tune.schedulers.async_hyperband import ASHAScheduler
 from transformers.trainer import Trainer
 
+from expes.callbacks import RayTrainReportCallback
 from expes.tuner_factory import TrainFuncFactories
 
 

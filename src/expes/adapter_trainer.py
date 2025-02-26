@@ -3,10 +3,11 @@ import re
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+from adapters import Seq2SeqAdapterTrainer  # noqa
 from adapters.composition import AdapterCompositionBlock, Fuse
 from torch import nn
 from torch.utils.data.dataset import Dataset, IterableDataset
-from transformers import PreTrainedModel, Seq2SeqTrainer, __version__
+from transformers import PreTrainedModel, __version__
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator
 from transformers.feature_extraction_utils import FeatureExtractionMixin
@@ -14,7 +15,11 @@ from transformers.image_processing_utils import BaseImageProcessor
 from transformers.modeling_utils import unwrap_model
 from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
+from transformers.trainer_callback import (
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
+)
 from transformers.trainer_utils import EvalPrediction
 from transformers.training_args import TrainingArguments
 from transformers.utils import (
@@ -109,7 +114,9 @@ class AdapterTrainer(Trainer):
             # Check if training AdapterFusion
             self.train_adapter_fusion = (
                 isinstance(self.model.active_adapters, Fuse)
-                or isinstance(self.model.active_adapters, AdapterCompositionBlock)
+                or isinstance(
+                    self.model.active_adapters, AdapterCompositionBlock
+                )
                 and any(
                     [
                         isinstance(child, Fuse)
@@ -137,14 +144,20 @@ class AdapterTrainer(Trainer):
         We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
         Trainer's init through `optimizers`, or subclass and override this method in a subclass.
         """
-        opt_model = self.model_wrapped if is_sagemaker_mp_enabled() else self.model
+        opt_model = (
+            self.model_wrapped if is_sagemaker_mp_enabled() else self.model
+        )
 
         if self.optimizer is None:
             decay_parameters = self.get_decay_parameter_names(opt_model)
-            if hasattr(self.model, "config") and hasattr(self.model.config, "adapters"):
+            if hasattr(self.model, "config") and hasattr(
+                self.model.config, "adapters"
+            ):
                 match_str = r"adapter_fusion_layer\..*\.value"
                 decay_parameters = [
-                    name for name in decay_parameters if not re.match(match_str, name)
+                    name
+                    for name in decay_parameters
+                    if not re.match(match_str, name)
                 ]
             optimizer_grouped_parameters = [
                 {
@@ -165,8 +178,8 @@ class AdapterTrainer(Trainer):
                 },
             ]
 
-            optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(
-                self.args
+            optimizer_cls, optimizer_kwargs = (
+                Trainer.get_optimizer_cls_and_kwargs(self.args)
             )
             self.optimizer = optimizer_cls(
                 optimizer_grouped_parameters, **optimizer_kwargs
@@ -179,7 +192,9 @@ class AdapterTrainer(Trainer):
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         # If we are executing this function, we are the process zero, so we don't check for that.
-        output_dir = output_dir if output_dir is not None else self.args.output_dir
+        output_dir = (
+            output_dir if output_dir is not None else self.args.output_dir
+        )
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving model checkpoint to {output_dir}")
         # Save a trained model and configuration using `save_pretrained()`.
@@ -220,7 +235,10 @@ class AdapterTrainer(Trainer):
                 os.path.join(resume_from_checkpoint, CONFIG_NAME)
             )
             checkpoint_version = config.transformers_version
-            if checkpoint_version is not None and checkpoint_version != __version__:
+            if (
+                checkpoint_version is not None
+                and checkpoint_version != __version__
+            ):
                 logger.warn(
                     f"You are resuming training from a checkpoint trained with {checkpoint_version} of "
                     f"Transformers but your current version is {__version__}. This is not recommended and could "
@@ -241,18 +259,26 @@ class AdapterTrainer(Trainer):
 
             if not adapter_loaded:
                 raise Exception(
-                    "Can't find a valid checkpoint at {}".format(resume_from_checkpoint)
+                    "Can't find a valid checkpoint at {}".format(
+                        resume_from_checkpoint
+                    )
                 )
 
     def _load_adapters(self, resume_from_checkpoint):
         adapter_loaded = False
         for file_name in os.listdir(resume_from_checkpoint):
             if os.path.isdir(os.path.join(resume_from_checkpoint, file_name)):
-                if "," not in file_name and "adapter_config.json" in os.listdir(
-                    os.path.join(resume_from_checkpoint, file_name)
+                if (
+                    "," not in file_name
+                    and "adapter_config.json"
+                    in os.listdir(
+                        os.path.join(resume_from_checkpoint, file_name)
+                    )
                 ):
                     self.model.load_adapter(
-                        os.path.join(os.path.join(resume_from_checkpoint, file_name))
+                        os.path.join(
+                            os.path.join(resume_from_checkpoint, file_name)
+                        )
                     )
                     adapter_loaded = True
         return adapter_loaded
@@ -282,7 +308,9 @@ class AdapterTrainer(Trainer):
         )
         # attempt to re-load all adapters from checkpoint
         for adapter in model.adapters_config.adapters:
-            adapter_dir = os.path.join(self.state.best_model_checkpoint, adapter)
+            adapter_dir = os.path.join(
+                self.state.best_model_checkpoint, adapter
+            )
             if os.path.exists(adapter_dir):
                 model.load_adapter(adapter_dir)
                 model.adapter_to(adapter, device=self.args.device)
@@ -293,7 +321,9 @@ class AdapterTrainer(Trainer):
             )
             # attempt to re-load all adapter fusions from checkpoint
             for fusion in model.adapters_config.fusions:
-                fusion_dir = os.path.join(self.state.best_model_checkpoint, fusion)
+                fusion_dir = os.path.join(
+                    self.state.best_model_checkpoint, fusion
+                )
                 if os.path.exists(fusion_dir):
                     model.load_adapter_fusion(fusion_dir)
                     model.adapter_fusion_to(fusion, device=self.args.device)
@@ -332,7 +362,3 @@ class AdapterTrainerCallback(TrainerCallback):
             fusion_reg_loss = model.base_model.get_fusion_regularization_loss()
             if fusion_reg_loss is not None:
                 fusion_reg_loss.backward()
-
-
-class Seq2SeqAdapterTrainer(AdapterTrainer, Seq2SeqTrainer):
-    pass

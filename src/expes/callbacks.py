@@ -91,6 +91,7 @@ class TestModelEachEpochCallback(TrainerCallback):
             eval_dataset=self.test_dataset, metric_key_prefix="test"
         )
         control.should_evaluate = True
+        control.should_log = True
 
 
 class RayTrainReportCallback(TrainerCallback):

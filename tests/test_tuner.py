@@ -10,8 +10,7 @@ from adapters.configuration.adapter_config import (
     MultiTaskConfigUnion,
 )
 from ray import tune
-from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaForCausalLM
+from transformers import LlamaConfig, LlamaForCausalLM
 
 from expes.chat_template import causal_chat_template
 from expes.dataset import (
@@ -67,7 +66,19 @@ class TestRayTuner(unittest.TestCase):
     def test_train_func(self):
         with TemporaryDirectory() as tmpdirname:
             factories = TrainFuncFactories(self.tuning_config)
-            tuner = RayTuner(factories)
+            tuner_config = RayTunerConfig(
+                metric="eval_etr_fr_sari_rouge_bertf1_hmean",
+                mode="max",
+                num_samples=2,
+                robustness_num_samples=2,
+                num_to_keep=2,
+            )
+            tuner = RayTuner(
+                factories=factories,
+                storage_path=tmpdirname,
+                expe_name="test_hp_search",
+                tuner_config=tuner_config,
+            )
             os.chdir(tmpdirname)
             tuner.train_func(asdict(self.tuning_config))
 
@@ -109,8 +120,12 @@ class TestRayTuner(unittest.TestCase):
         self.assertListEqual(result_grid.errors, [])
 
         required_metrics = [
+            "loss",
+            "epoch",
             "test_{task}_texts",
             "eval_{task}_texts",
+            "test_{task}_loss",
+            "eval_{task}_loss",
         ]
         for result in result_grid._results:
             for task in self.tasks:
