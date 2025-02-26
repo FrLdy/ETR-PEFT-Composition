@@ -8,6 +8,7 @@ dependencies = [
     "adapters[dev]",
     "bert-score>=0.3.13",
     "black>=24.4.2",
+    "cookiecutter>=2.6.0",
     "evaluate>=0.4.3",
     "flake8>=7.1.1",
     "isort>=5.13.2",
