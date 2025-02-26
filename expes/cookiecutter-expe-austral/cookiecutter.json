@@ -6,5 +6,7 @@
   "partition": "gpu_all",
   "time": "48:00:00",
   "nodes": 1,
-  "gpus": 8
+  "gpus": 8,
+
+  "project_basename": "etr-peft-composition"
 }
