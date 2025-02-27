@@ -9,11 +9,16 @@ def replace_ignore_index(tokens, substitution_token, ignore_index=-100):
     return tokens
 
 
-class Seq2SeqEvalPredManager:
+class EvalPredManager: ...
+
+
+class Seq2SeqEvalPredManager(EvalPredManager):
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 
-    def replace_special_tokens(self, eval_pred, substitution_token, ignore_index=-100):
+    def replace_special_tokens(
+        self, eval_pred, substitution_token, ignore_index=-100
+    ):
         replace_fn = partial(
             replace_ignore_index,
             substitution_token=substitution_token,
@@ -62,7 +67,9 @@ class ChatEvalPredictionManager(Seq2SeqEvalPredManager):
 
     def get_input(self, text):
         return (
-            text.split(self.output_prefix, 1)[0].replace(self.input_prefix, "").strip()
+            text.split(self.output_prefix, 1)[0]
+            .replace(self.input_prefix, "")
+            .strip()
         )
 
     def get_inputs(self, texts):

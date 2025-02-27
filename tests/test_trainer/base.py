@@ -6,17 +6,14 @@ import adapters
 import torch
 from adapters.heads.language_modeling import CausalLMHead
 from datasets import DatasetDict
-from ray.util import pdb
-from transformers.trainer_utils import EvalPrediction
 
 from expes.adapter_trainer import AdapterTrainer, Seq2SeqAdapterTrainer
 from expes.callbacks import (
     LogParametersTrainedCallback,
-    RayTrainReportCallback,
     SavePredictionsCallback,
     TestModelEachEpochCallback,
 )
-from expes.metric import TEXT_METRIC_KEY
+from expes.metric import METRIC_KEY_TEXTS
 from expes.training_args import Seq2SeqTrainingArguments, TrainingArguments
 
 from ..utils import get_dataset
@@ -193,7 +190,7 @@ class BaseTestTrainer:
 
         return {
             "dummy_score": 1.0,
-            TEXT_METRIC_KEY: {
+            METRIC_KEY_TEXTS: {
                 "inputs": eval_pred.inputs,
                 "labels": eval_pred.label_ids,
                 "predictions": eval_pred.predictions,

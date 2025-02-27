@@ -32,8 +32,6 @@ class ChatTemplate:
             output_prefix=tokenizer.output_prefix,
         )
 
-        tokenizer.eval_pred_manager = ChatEvalPredictionManager(self, tokenizer)
-
         return tokenizer
 
 

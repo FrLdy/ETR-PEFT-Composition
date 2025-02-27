@@ -1,21 +1,18 @@
 import jsonargparse
 
-from expes.tuner import RayTuner, RayTunerConfig
+from expes.config import RessourcesConfig
+from expes.tuner import RayTuner
 
 
 def tuner_cli(
     ray_tuner_cls=RayTuner,
-    ray_tuner_config_cls=RayTunerConfig,
+    ressources_config_cls=RessourcesConfig,
 ):
     parser = jsonargparse.ArgumentParser()
     parser.add_class_arguments(
         ray_tuner_cls,
-        "init",
+        None,
         skip=["factories", "tuner_config"],
-    )
-    parser.add_class_arguments(
-        ray_tuner_config_cls,
-        "tuner_config",
     )
     args = parser.parse_args()
     return args
