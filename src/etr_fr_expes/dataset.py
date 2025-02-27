@@ -105,55 +105,8 @@ DS_KEY_ETR_FR = "etr_fr"
 DS_KEY_WIKILARGE_FR = "wikilarge_fr"
 DS_KEY_ORANGESUM = "orangesum"
 
-DATASETS = {
+AVAILABLE_DATASETS = {
     DS_KEY_ETR_FR: load_etr_fr,
     DS_KEY_WIKILARGE_FR: load_wikilarge_fr,
     DS_KEY_ORANGESUM: load_orangesum,
 }
-
-
-def get_tasks_datasets(
-    tasks=None,
-):
-    tasks = tasks or list(DATASETS.keys())
-    datasets = DatasetDict({task: DATASETS[task]() for task in tasks})
-    return datasets
-
-
-def prepare_datasets(config: TrainingConfig, tokenizer):
-    datasets = get_tasks_datasets(tasks=config.tasks)
-    data_config = config.data_config
-    if data_config.n_samples is not None:
-        for split in datasets:
-            for task in datasets[split]:
-                datasets[split][task] = datasets[split][task].select(
-                    range(data_config.n_samples)
-                )
-
-    if data_config.tokenize_dataset:
-
-        def tokenize_function(batch):
-            inputs = tokenizer(
-                batch[SRC_KEY],
-                truncation=True,
-                max_length=128,
-            )
-            targets = tokenizer(
-                text_target=batch[DST_KEY],
-                truncation=True,
-                max_length=128,
-            )
-            inputs["labels"] = targets["input_ids"]
-
-            return inputs
-
-        for task in datasets:
-            datasets[task] = datasets[task].map(
-                tokenize_function,
-                batched=True,
-                remove_columns=[SRC_KEY, DST_KEY],
-            )
-
-    return build_mtl_dataset(
-        datasets, stopping_strategy=data_config.stopping_strategy
-    )

@@ -50,11 +50,12 @@ class RessourcesConfig:
 
 @dataclass()
 class DataConfig:
-    # TODO add var to tokenize dataset : max length truncate etc
     get_dataset: Callable
     stopping_strategy: Optional[StoppingStrategy] = "concatenate"
-    tokenize_dataset: bool = False
     n_samples: Optional[int] = None
+    tokenize_dataset: bool = False
+    input_max_length: int = 128
+    output_max_length: int = 128
 
 
 @dataclass()
