@@ -31,4 +31,7 @@ module load aidl/pytorch/2.0.0-cuda11.7
 srun python ./run.py \
     --storage_path=$results_dir \
     --expe_name=$SLURM_JOB_NAME \
+    --ressources_config.use_gpu=true \
+    --ressources_config.num_workers=$SLURM_GPUS \
+    --ressources_config.cpus_per_worker=$SLURM_CPUS_PER_GPU
 
