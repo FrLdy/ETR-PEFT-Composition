@@ -4,8 +4,6 @@ from functools import partial
 from typing import Dict, List, Optional, Type, Union
 
 from adapters import AdapterCompositionBlock, AdapterConfig, init
-from adapters.configuration import adapter_config
-from ray.util import pdb
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollatorForSeq2Seq
 from transformers.modeling_utils import PreTrainedModel
