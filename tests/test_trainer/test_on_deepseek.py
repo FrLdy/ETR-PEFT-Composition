@@ -1,6 +1,11 @@
 import unittest
 
-from transformers import AutoConfig, AutoTokenizer, LlamaConfig, LlamaForCausalLM
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    LlamaConfig,
+    LlamaForCausalLM,
+)
 
 from expes.chat_template import ChatTemplate
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
@@ -33,7 +38,8 @@ class TestDeepSeekR1Llama8B(unittest.TestCase, BaseTestTrainer):
 
         return model, tokenizer
 
-    def trainer_kwargs(self, tokenizer):
+    def trainer_kwargs(self, **kwargs):
+        tokenizer = kwargs.get("tokenizer")
         instruction_template = [14711, 5688, 25]
         response_template = [17010, 9442, 25]
         return {

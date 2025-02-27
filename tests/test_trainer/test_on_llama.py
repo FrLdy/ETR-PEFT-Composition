@@ -1,6 +1,12 @@
 import unittest
 
-from transformers import AutoConfig, AutoTokenizer, LlamaConfig, LlamaForCausalLM
+from fsspec.utils import tokenize
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    LlamaConfig,
+    LlamaForCausalLM,
+)
 
 from expes.chat_template import ChatTemplate
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
@@ -33,7 +39,8 @@ class TestLlama27BTrainer(unittest.TestCase, BaseTestTrainer):
 
         return model, tokenizer
 
-    def trainer_kwargs(self, tokenizer):
+    def trainer_kwargs(self, **kwargs):
+        tokenizer = kwargs.get("tokenizer")
         return {
             "data_collator": DataCollatorForSeq2SeqCausalLM(
                 tokenizer=tokenizer,
@@ -50,7 +57,8 @@ class TestLlama27BTrainer(unittest.TestCase, BaseTestTrainer):
 class TestLlama323BTrainer(TestLlama27BTrainer):
     checkpoint = "meta-llama/Llama-3.2-3B"
 
-    def trainer_kwargs(self, tokenizer):
+    def trainer_kwargs(self, **kwargs):
+        tokenizer = kwargs.get("tokenizer")
         instruction_template = [14711, 5688, 25]
         response_template = [17010, 9442, 25]
         return {
@@ -73,7 +81,8 @@ class TestLlama323BTrainer(TestLlama27BTrainer):
 class TestLlama318BTrainer(TestLlama27BTrainer):
     checkpoint = "meta-llama/Llama-3.1-8B"
 
-    def trainer_kwargs(self, tokenizer):
+    def trainer_kwargs(self, **kwargs):
+        tokenizer = kwargs.get("tokenizer")
         instruction_template = [14711, 5688, 25]
         response_template = [17010, 9442, 25]
         return {
