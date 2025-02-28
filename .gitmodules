@@ -1,0 +1,7 @@
+[submodule "dependencies/adapters"]
+	path = dependencies/adapters
+	url = https://github.com/FrLdy/adapters.git
+	branch = dev/MTL-LoRA
+[submodule "dependencies/TextDescriptives"]
+	path = dependencies/TextDescriptives
+	url = https://github.com/FrLdy/TextDescriptives.git
