@@ -7,11 +7,11 @@ import adapters
 from adapters.composition import MultiTask
 from ray import tune
 
+from etr_fr_expes.config import ETRDataConfig
 from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR,
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
-    prepare_datasets,
 )
 from etr_fr_expes.metric import etr_compute_metrics
 from expes import RayTuner, TrainFuncFactories, TrainingConfig
@@ -52,8 +52,7 @@ class BaseRayTunerTest:
 
     def get_training_config(self, adapter_configs, adapter_activation):
         training_config = TrainingConfig(
-            data_config=DataConfig(
-                get_dataset=prepare_datasets,
+            data_config=ETRDataConfig(
                 n_samples=5,
                 **self.data_config_special_kwargs,
             ),

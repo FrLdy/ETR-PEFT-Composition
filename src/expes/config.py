@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
+from optparse import Option
 from typing import Any, Dict, List, Optional, Type, Union
 
 import torch
@@ -10,10 +11,10 @@ from ray.air.config import SampleRange
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 from transformers.trainer_seq2seq import Seq2SeqTrainer
+from transformers.training_args import default_logdir
 
 from expes.adapter_trainer import AdapterTrainer
 from expes.chat_template import ChatTemplate
-from expes.dataset import StoppingStrategy
 from expes.eval_pred_manager import (
     ChatEvalPredictionManager,
     EvalPredManager,
@@ -21,6 +22,7 @@ from expes.eval_pred_manager import (
 )
 from expes.trainer import Trainer
 from expes.training_args import Seq2SeqTrainingArguments, TrainingArguments
+from expes.types import StoppingStrategy
 
 
 @dataclass()
@@ -48,7 +50,7 @@ class RessourcesConfig:
         )
 
 
-@dataclass()
+@dataclass
 class DataConfig:
     get_dataset: Callable
     stopping_strategy: Optional[StoppingStrategy] = "concatenate"
@@ -58,12 +60,12 @@ class DataConfig:
     output_max_length: int = 128
 
 
-@dataclass()
+@dataclass
 class TrainingConfig:
-    tasks: List[str]
-    data_config: DataConfig
-    compute_metrics: Callable
-    model_class: Union[type, Type[PreTrainedModel]]
+    tasks: List[str] = field(default_factory=list)
+    data_config: Optional[DataConfig] = None
+    model_class: Optional[Union[type, Type[PreTrainedModel]]] = None
+    compute_metrics: Optional[Callable] = None
     pad_token: Optional[str] = None
     eval_pred_manager_cls: Optional[Type[EvalPredManager]] = None
     chat_template: Optional[ChatTemplate] = None

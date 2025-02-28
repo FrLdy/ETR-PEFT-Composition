@@ -22,19 +22,19 @@ class ETRTunerConfig(TunerConfig):
 
 
 @dataclass
-class ETRDataConfig(DataConfig):
-    get_dataset: Callable = get_dataset_factory_fn(
-        AVAILABLE_DATASETS, singleton=True
-    )
-
-
-@dataclass
 class ETRTrainingConfig(TrainingConfig):
-    compute_metric: Callable = etr_compute_metrics
     tasks: List[str] = field(
         default_factory=lambda: [
             DS_KEY_ETR_FR,
             DS_KEY_WIKILARGE_FR,
             DS_KEY_ORANGESUM,
         ]
+    )
+    compute_metric: Callable = etr_compute_metrics
+
+
+@dataclass
+class ETRDataConfig(DataConfig):
+    get_dataset: Callable = get_dataset_factory_fn(
+        AVAILABLE_DATASETS, singleton=True
     )

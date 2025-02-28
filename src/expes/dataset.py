@@ -4,11 +4,10 @@ from typing import Dict, List, Literal, Optional
 from datasets import DatasetDict, concatenate_datasets, interleave_datasets
 
 from expes.config import TrainingConfig
+from expes.types import StoppingStrategy
 
 SRC_KEY = "src"
 DST_KEY = "dst"
-
-StoppingStrategy = Literal["concatenate", "first_exhausted", "all_exhausted"]
 
 
 def build_mtl_dataset(
