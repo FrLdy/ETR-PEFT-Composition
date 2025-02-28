@@ -64,7 +64,7 @@ class TrainingConfig:
     test_tasks: List[str] = field(default_factory=list)
     data_config: Optional[DataConfig] = None
     model_class: Optional[Union[type, Type[PreTrainedModel]]] = None
-    compute_metrics: Optional[Callable] = None
+    get_metrics_fn: Optional[Callable] = None
     pad_token: Optional[str] = None
     eval_pred_manager_cls: Optional[Type[EvalPredManager]] = None
     chat_template: Optional[ChatTemplate] = None

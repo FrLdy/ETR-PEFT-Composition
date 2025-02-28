@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import asdict, dataclass
 from functools import partial
 from pathlib import Path
@@ -20,13 +19,9 @@ from expes.callbacks import (
     RayTrainReportCallback,
     TestModelEachEpochCallback,
 )
-from expes.config import (
-    DataConfig,
-    RessourcesConfig,
-    TrainingConfig,
-    TunerConfig,
-)
+from expes.config import RessourcesConfig, TrainingConfig, TunerConfig
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
+from expes.metric import compute_metrics
 
 
 @dataclass()
@@ -128,8 +123,10 @@ class TrainFuncFactories:
         }
 
     def get_compute_metrics_fn(self, tokenizer):
+        metric_fn = self.training_config.get_metrics_fn()
+
         return partial(
-            self.training_config.compute_metrics, tokenizer=tokenizer
+            compute_metrics, metrics_fn=metric_fn, tokenizer=tokenizer
         )
 
     def get_training_args(self, config: TrainingConfig):

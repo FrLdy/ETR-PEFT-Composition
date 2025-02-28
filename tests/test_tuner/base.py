@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 from dataclasses import asdict
+from functools import partial
 from tempfile import TemporaryDirectory
 
 import adapters
@@ -15,7 +16,7 @@ from etr_fr_expes.dataset import (
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
 )
-from etr_fr_expes.metric import etr_compute_metrics
+from etr_fr_expes.metric import METRIC_KEY_SRB, ETRMetrics, etr_compute_metrics
 from expes import RayTuner, TrainFuncFactories, TrainingConfig
 from expes.config import DataConfig, TunerConfig
 from expes.dataset import get_dataset_factory_fn
@@ -83,7 +84,7 @@ class BaseRayTunerTest:
                 input_max_length=128,
                 output_max_length=128,
             ),
-            compute_metrics=etr_compute_metrics,
+            get_metrics_fn=partial(ETRMetrics, lang="fr"),
             model_class=self.model_class,
             model_config=self.model_config,
             tokenizer_checkpoint=self.tokenizer_checkpoint,
@@ -113,7 +114,7 @@ class BaseRayTunerTest:
     def get_tuner(self, training_config, storage_path, expe_name):
         factories = TrainFuncFactories(training_config)
         tuner_config = TunerConfig(
-            metric="eval_etr_fr_sari_rouge_bertf1_hmean",
+            metric=f"eval_{DS_KEY_ETR_FR}_{METRIC_KEY_SRB}",
             mode="max",
             num_samples=2,
             robustness_num_samples=2,

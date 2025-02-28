@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Callable, List, Optional
 
 from etr_fr_expes.dataset import (
@@ -7,7 +8,7 @@ from etr_fr_expes.dataset import (
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
 )
-from etr_fr_expes.metric import METRIC_KEY_SRB, etr_compute_metrics
+from etr_fr_expes.metric import METRIC_KEY_SRB, ETRMetrics
 from expes.config import DataConfig, TrainingConfig, TunerConfig
 from expes.dataset import get_dataset_factory_fn
 
@@ -30,7 +31,7 @@ class ETRTrainingConfig(TrainingConfig):
             DS_KEY_ORANGESUM,
         ]
     )
-    compute_metric: Callable = etr_compute_metrics
+    get_metrics_fn: Callable = partial(ETRMetrics, lang="fr")
 
 
 @dataclass
