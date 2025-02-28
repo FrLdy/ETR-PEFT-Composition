@@ -191,7 +191,9 @@ class RayTuner:
 
     def train_func(self, config):
         # TODO : use automatic class finder to recreate dataclass object
-        data_config = DataConfig(**config.pop("data_config"))
+        data_config = self.factories.training_config.data_config.__class__(
+            **config.pop("data_config")
+        )
         config = self.factories.training_config.__class__(
             **config, data_config=data_config
         )
