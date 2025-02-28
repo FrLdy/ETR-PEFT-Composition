@@ -1,6 +1,5 @@
-from dependencies.adapters.hf_transformers.build.lib.transformers.utils.dummy_pt_objects import (
-    AutoModelForSeq2SeqLM,
-)
+from transformers import AutoModelForSeq2SeqLM
+
 from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig
 from etr_fr_expes.dataset import DS_KEY_ETR_FR
 from etr_fr_expes.hyperparameters import (
