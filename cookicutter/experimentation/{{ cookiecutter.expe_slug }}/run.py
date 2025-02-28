@@ -7,13 +7,13 @@ from expes.tuner import (
 )
 
 # To be completed or import an predefined
-hps_config = TrainingConfig()
+training_config = TrainingConfig()
 
 if __name__ == "__main__":
     args = tuner_cli()
     tuner = RayTuner(
         **args.init,
         tuner_config=RessourcesConfig(**args.tuner_config),
-        factories=TrainFuncFactories(hps_config),
+        factories=TrainFuncFactories(training_config),
     )
     tuner()
