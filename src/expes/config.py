@@ -54,7 +54,7 @@ class RessourcesConfig:
 class DataConfig:
     get_dataset: Callable
     stopping_strategy: Optional[StoppingStrategy] = "concatenate"
-    n_samples: Optional[int] = None
+    n_train_samples_per_task: Optional[int] = None
     tokenize_dataset: bool = False
     input_max_length: int = 128
     output_max_length: int = 128
@@ -62,7 +62,9 @@ class DataConfig:
 
 @dataclass
 class TrainingConfig:
-    tasks: List[str] = field(default_factory=list)
+    train_tasks: List[str] = field(default_factory=list)
+    validation_tasks: List[str] = field(default_factory=list)
+    test_tasks: List[str] = field(default_factory=list)
     data_config: Optional[DataConfig] = None
     model_class: Optional[Union[type, Type[PreTrainedModel]]] = None
     compute_metrics: Optional[Callable] = None

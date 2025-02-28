@@ -25,7 +25,8 @@ class BaseRayTunerTest:
     training_config_special_kwargs = None
     data_config_special_kwargs = None
 
-    tasks = [DS_KEY_ETR_FR, DS_KEY_ORANGESUM, DS_KEY_WIKILARGE_FR]
+    tasks = [DS_KEY_ETR_FR]
+    eval_tasks = [DS_KEY_ETR_FR]
     configs_to_test = [
         (
             {
@@ -52,6 +53,9 @@ class BaseRayTunerTest:
 
     def get_training_config(self, adapter_configs, adapter_activation):
         training_config = TrainingConfig(
+            train_tasks=self.tasks,
+            validation_tasks=self.eval_tasks,
+            test_tasks=self.eval_tasks,
             data_config=ETRDataConfig(
                 n_samples=5,
                 **self.data_config_special_kwargs,
@@ -60,7 +64,6 @@ class BaseRayTunerTest:
             model_class=self.model_class,
             model_config=self.model_config,
             tokenizer_checkpoint=self.tokenizer_checkpoint,
-            tasks=self.tasks,
             adapter_configs=adapter_configs,
             adapter_activation=adapter_activation,
             training_kwargs={

@@ -68,20 +68,20 @@ class TestDataset(unittest.TestCase):
 
     def test_build_mtl_dataset(self):
         datasets = self.get_datasets()
-        mtl_dataset = build_mtl_dataset(datasets, stopping_strategy=None)
+        mtl_dataset = build_mtl_dataset(datasets, sampling_strategy=None)
         self.run_base_tests(mtl_dataset)
 
     def test_build_mtl_dataset_interleave_f_exhausted(self):
         datasets = self.get_datasets()
 
         mtl_dataset = build_mtl_dataset(
-            datasets, stopping_strategy="first_exhausted"
+            datasets, sampling_strategy="first_exhausted"
         )
         self.run_base_tests(mtl_dataset, splits=["validation", "test"])
 
     def test_build_mtl_dataset_interleave_all_exhausted(self):
         datasets = self.get_datasets()
         mtl_dataset = build_mtl_dataset(
-            datasets, stopping_strategy="all_exhausted"
+            datasets, sampling_strategy="all_exhausted"
         )
         self.run_base_tests(mtl_dataset, splits=["validation", "test"])

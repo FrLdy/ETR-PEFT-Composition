@@ -1,10 +1,10 @@
 from functools import partial
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 from datasets import DatasetDict, concatenate_datasets, interleave_datasets
 
 from expes.config import TrainingConfig
-from expes.types import StoppingStrategy
+from expes.types import SamplingStrategy
 
 SRC_KEY = "src"
 DST_KEY = "dst"
@@ -12,7 +12,10 @@ DST_KEY = "dst"
 
 def build_mtl_dataset(
     datasets: Dict[str, DatasetDict],
-    stopping_strategy: Optional[StoppingStrategy] = None,
+    train_tasks: List[str],
+    validation_tasks: List[str],
+    test_tasks: List[str],
+    sampling_strategy: Optional[SamplingStrategy] = None,
 ):
     datasets = {
         ds_name: datasets[ds_name].map(lambda _: {"task_ids": i})
@@ -20,6 +23,7 @@ def build_mtl_dataset(
     }
 
     concat_fn = {
+        "balanced": None,  # TODO: add strategy using n_samples
         "concatenate": concatenate_datasets,
         "first_exhausted": partial(
             interleave_datasets, stopping_strategy="first_exhausted"
@@ -29,9 +33,13 @@ def build_mtl_dataset(
         ),
     }
 
-    def group_by_split(split, interleave=None):
+    def group_by_split(split, tasks, interleave=None):
         ds_split = DatasetDict(
-            {name: dset[split] for name, dset in datasets.items()}
+            {
+                name: dset[split]
+                for name, dset in datasets.items()
+                if name in tasks
+            }
         )
         if interleave is not None:
             ds_split = concat_fn[interleave](list(ds_split.values()))
@@ -39,9 +47,9 @@ def build_mtl_dataset(
 
     return DatasetDict(
         {
-            "train": group_by_split("train", stopping_strategy),
-            "test": group_by_split("test"),
-            "validation": group_by_split("validation"),
+            "train": group_by_split("train", train_tasks, sampling_strategy),
+            "validation": group_by_split("validation", validation_tasks),
+            "test": group_by_split("test", test_tasks),
         }
     )
 
@@ -52,15 +60,26 @@ class MTLDatasetFactory:
         self.singleton = singleton
         self._prepared_datasets = {}
 
-    def __call__(self, tasks: List[str], stopping_strategy: StoppingStrategy):
-        hash = "{tasks}/{stopping_strategy}".format(
-            tasks=";".join(tasks), stopping_strategy=stopping_strategy
+    def __call__(self, config: TrainingConfig):
+        train_tasks = config.train_tasks
+        eval_tasks = config.validation_tasks
+        test_tasks = config.test_tasks
+        stopping_strategy = config.data_config.stopping_strategy
+        hash = "{train_tasks}/{eval_tasks}/{test_tasks}/{stopping_strategy}".format(
+            train_tasks=";".join(train_tasks),
+            eval_tasks=";".join(eval_tasks),
+            test_tasks=";".join(test_tasks),
+            stopping_strategy=stopping_strategy,
         )
         if self.singleton and hash in self._prepared_datasets:
             prepared_dataset = self._prepared_datasets[hash]
         else:
-            datasets = self.get_tasks_datasets(tasks)
-            prepared_dataset = build_mtl_dataset(datasets, stopping_strategy)
+            datasets = self.get_tasks_datasets(
+                set([*train_tasks, *eval_tasks, *test_tasks])
+            )
+            prepared_dataset = build_mtl_dataset(
+                datasets, train_tasks, eval_tasks, test_tasks, stopping_strategy
+            )
 
         if self.singleton and hash not in self._prepared_datasets:
             self._prepared_datasets[hash] = prepared_dataset
@@ -110,9 +129,7 @@ def get_dataset_factory_fn(available_dataset_loaders, singleton):
 
     def factory_fn(config: TrainingConfig, tokenizer):
         data_config = config.data_config
-        datasets = dataset_factory(
-            tasks=config.tasks, stopping_strategy=data_config.stopping_strategy
-        )
+        datasets = dataset_factory(config)
 
         if data_config.tokenize_dataset:
             datasets = tokenize_dataset(
@@ -121,5 +138,6 @@ def get_dataset_factory_fn(available_dataset_loaders, singleton):
                 input_max_length=data_config.input_max_length,
                 output_max_length=data_config.output_max_length,
             )
+        return datasets
 
     return factory_fn
