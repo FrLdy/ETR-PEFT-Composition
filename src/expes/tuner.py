@@ -104,7 +104,7 @@ class TrainFuncFactories:
         return model
 
     def get_datasets(self, config: TrainingConfig, tokenizer):
-        return config.data_config.get_dataset(config, tokenizer)
+        return config.data_config.get_datasets(config, tokenizer)
 
     def get_datacollators(self, config: TrainingConfig, tokenizer, model):
         if config.is_causal_lm:
@@ -205,7 +205,6 @@ class RayTuner:
 
         compute_metrics = self.factories.get_compute_metrics_fn(tokenizer)
         datasets = self.factories.get_datasets(config, tokenizer)
-        __import__("pdb").set_trace()
         train_dataset = datasets.get("train")
         eval_dataset = datasets.get("validation")
         test_dataset = datasets.get("test")

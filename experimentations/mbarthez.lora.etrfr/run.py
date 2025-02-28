@@ -12,9 +12,12 @@ from expes.tuner import RayTuner, RessourcesConfig, TrainFuncFactories
 
 # To be completed or import an predefined
 training_config = ETRTrainingConfig(
-    tasks=[DS_KEY_ETR_FR],
+    train_tasks=[DS_KEY_ETR_FR],
+    validation_tasks=[DS_KEY_ETR_FR],
+    test_tasks=[DS_KEY_ETR_FR],
     is_causal_lm=False,
     data_config=ETRDataConfig(
+        sampling_strategy="balanced",
         tokenize_dataset=True,
         input_max_length=512,
         output_max_length=256,

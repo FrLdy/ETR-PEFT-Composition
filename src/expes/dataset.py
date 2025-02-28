@@ -10,6 +10,13 @@ SRC_KEY = "src"
 DST_KEY = "dst"
 
 
+def balanced(datasets):
+    max_n_samples = min(len(d) for d in datasets)
+    return concatenate_datasets(
+        [d.select(range(max_n_samples)) for d in datasets]
+    )
+
+
 def build_mtl_dataset(
     datasets: Dict[str, DatasetDict],
     train_tasks: List[str],
@@ -23,7 +30,7 @@ def build_mtl_dataset(
     }
 
     concat_fn = {
-        "balanced": None,  # TODO: add strategy using n_samples
+        "balanced": balanced,  # TODO: add strategy using n_samples
         "concatenate": concatenate_datasets,
         "first_exhausted": partial(
             interleave_datasets, stopping_strategy="first_exhausted"
@@ -64,7 +71,7 @@ class MTLDatasetFactory:
         train_tasks = config.train_tasks
         eval_tasks = config.validation_tasks
         test_tasks = config.test_tasks
-        stopping_strategy = config.data_config.stopping_strategy
+        stopping_strategy = config.data_config.sampling_strategy
         hash = "{train_tasks}/{eval_tasks}/{test_tasks}/{stopping_strategy}".format(
             train_tasks=";".join(train_tasks),
             eval_tasks=";".join(eval_tasks),

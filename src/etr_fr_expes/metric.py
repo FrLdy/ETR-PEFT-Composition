@@ -188,7 +188,7 @@ class ETRMetrics:
             self.sari_rouge_bertscore_hmean(
                 res[METRIC_KEY_SARI],
                 res[METRIC_KEY_ROUGEL],
-                res[f"{METRIC_KEY_BERTSCORE_F1}"],
+                res[METRIC_KEY_BERTSCORE_F1],
             )
         )
 

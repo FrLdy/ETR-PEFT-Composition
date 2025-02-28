@@ -12,8 +12,8 @@
 
 #SBATCH --partition=gpu_all
 #SBATCH --cpus-per-gpu=8
-#SBATCH --gpus-per-node=8
-#SBATCH --gres=gpu:8
+#SBATCH --gpus-per-node=4
+#SBATCH --gres=gpu:4
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
 

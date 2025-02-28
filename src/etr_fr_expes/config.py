@@ -35,6 +35,6 @@ class ETRTrainingConfig(TrainingConfig):
 
 @dataclass
 class ETRDataConfig(DataConfig):
-    get_dataset: Callable = get_dataset_factory_fn(
+    get_datasets: Callable = get_dataset_factory_fn(
         AVAILABLE_DATASETS, singleton=True
     )

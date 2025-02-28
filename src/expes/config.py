@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
-from optparse import Option
 from typing import Any, Dict, List, Optional, Type, Union
 
 import torch
@@ -11,7 +10,6 @@ from ray.air.config import SampleRange
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 from transformers.trainer_seq2seq import Seq2SeqTrainer
-from transformers.training_args import default_logdir
 
 from expes.adapter_trainer import AdapterTrainer
 from expes.chat_template import ChatTemplate
@@ -22,7 +20,7 @@ from expes.eval_pred_manager import (
 )
 from expes.trainer import Trainer
 from expes.training_args import Seq2SeqTrainingArguments, TrainingArguments
-from expes.types import StoppingStrategy
+from expes.types import SamplingStrategy
 
 
 @dataclass()
@@ -52,9 +50,8 @@ class RessourcesConfig:
 
 @dataclass
 class DataConfig:
-    get_dataset: Callable
-    stopping_strategy: Optional[StoppingStrategy] = "concatenate"
-    n_train_samples_per_task: Optional[int] = None
+    get_datasets: Callable
+    sampling_strategy: Optional[SamplingStrategy] = "balanced"
     tokenize_dataset: bool = False
     input_max_length: int = 128
     output_max_length: int = 128

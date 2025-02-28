@@ -5,10 +5,12 @@ from tempfile import TemporaryDirectory
 
 import adapters
 from adapters.composition import MultiTask
+from datasets import Dataset, DatasetDict
 from ray import tune
 
 from etr_fr_expes.config import ETRDataConfig
 from etr_fr_expes.dataset import (
+    AVAILABLE_DATASETS,
     DS_KEY_ETR_FR,
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
@@ -16,6 +18,25 @@ from etr_fr_expes.dataset import (
 from etr_fr_expes.metric import etr_compute_metrics
 from expes import RayTuner, TrainFuncFactories, TrainingConfig
 from expes.config import DataConfig, TunerConfig
+from expes.dataset import get_dataset_factory_fn
+
+
+def get_begug_dataset_factory_fn():
+    factory = get_dataset_factory_fn(AVAILABLE_DATASETS, singleton=True)
+
+    def factory_fn(config: TrainingConfig, tokenizer):
+        datasets = factory(config, tokenizer)
+        n_samples = range(5)
+        for k, v in datasets.items():
+            if isinstance(v, DatasetDict):
+                datasets[k] = DatasetDict(
+                    {split: ds.select(n_samples) for split, ds in v.items()}
+                )
+            else:
+                datasets[k] = v.select(n_samples)
+        return datasets
+
+    return factory_fn
 
 
 class BaseRayTunerTest:
@@ -57,8 +78,10 @@ class BaseRayTunerTest:
             validation_tasks=self.eval_tasks,
             test_tasks=self.eval_tasks,
             data_config=ETRDataConfig(
-                n_samples=5,
+                get_datasets=get_begug_dataset_factory_fn(),
                 **self.data_config_special_kwargs,
+                input_max_length=128,
+                output_max_length=128,
             ),
             compute_metrics=etr_compute_metrics,
             model_class=self.model_class,
@@ -156,7 +179,7 @@ class BaseRayTunerTest:
             "eval_{task}_loss",
         ]
         for result in result_grid._results:
-            for task in self.tasks:
+            for task in self.eval_tasks:
                 for required_metric in required_metrics:
                     self.assertIn(
                         required_metric.format(task=task), result.metrics
