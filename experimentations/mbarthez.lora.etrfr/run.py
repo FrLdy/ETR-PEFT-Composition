@@ -1,6 +1,6 @@
 from transformers import AutoModelForSeq2SeqLM
 
-from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig
+from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
 from etr_fr_expes.dataset import DS_KEY_ETR_FR
 from etr_fr_expes.hyperparameters import (
     default_training_kwargs,
@@ -8,7 +8,7 @@ from etr_fr_expes.hyperparameters import (
     training_kwargs_grid_search,
 )
 from expes.cli import tuner_cli
-from expes.tuner import RayTuner, RessourcesConfig, TrainFuncFactories
+from expes.tuner import TrainFuncFactories
 
 # To be completed or import an predefined
 training_config = ETRTrainingConfig(
@@ -34,12 +34,12 @@ training_config = ETRTrainingConfig(
         "num_train_epochs": 5,
     },
 )
+tuner_config = ETRTunerConfig()
 
 if __name__ == "__main__":
-    args = tuner_cli()
-    tuner = RayTuner(
-        **args.init,
-        tuner_config=RessourcesConfig(**args.tuner_config),
+    tuner_cls = tuner_cli()
+    tuner = tuner_cls(
+        tuner_config=tuner_config,
         factories=TrainFuncFactories(training_config),
     )
     tuner()

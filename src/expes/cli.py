@@ -1,3 +1,5 @@
+from functools import partial
+
 import jsonargparse
 
 from expes.config import RessourcesConfig
@@ -15,4 +17,9 @@ def tuner_cli(
         skip=["factories", "tuner_config"],
     )
     args = parser.parse_args()
-    return args
+    return partial(
+        ray_tuner_cls,
+        storage_path=args.storage_path,
+        expe_name=args.expe_name,
+        ressources_config=RessourcesConfig(**args.ressources_config),
+    )
