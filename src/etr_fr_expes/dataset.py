@@ -9,8 +9,12 @@ from datasets.config import HF_DATASETS_CACHE
 SRC_KEY = "src"
 DST_KEY = "dst"
 
+DS_KEY_ETR_FR = "etr_fr"
+DS_KEY_WIKILARGE_FR = "wikilarge_fr"
+DS_KEY_ORANGESUM = "orangesum"
 
-def load_orangesum():
+
+def load_orangesum(**kwargs):
     dataset = load_dataset(
         "EdinburghNLP/orange_sum", "abstract", trust_remote_code=True
     )
@@ -23,7 +27,7 @@ def load_wikilarge_fr(
     use_cache=True,
 ):
 
-    cache_location = HF_DATASETS_CACHE / "wikilarge_fr"
+    cache_location = HF_DATASETS_CACHE / DS_KEY_WIKILARGE_FR
 
     if use_cache and cache_location.exists():
         return load_from_disk(cache_location)
@@ -73,7 +77,7 @@ def load_etr_fr(
     use_cache=True,
 ):
 
-    cache_location = HF_DATASETS_CACHE / "etr_fr"
+    cache_location = HF_DATASETS_CACHE / DS_KEY_ETR_FR
 
     if use_cache and cache_location.exists():
         return load_from_disk(cache_location)
@@ -97,10 +101,6 @@ def load_etr_fr(
 
     return dataset_dict
 
-
-DS_KEY_ETR_FR = "etr_fr"
-DS_KEY_WIKILARGE_FR = "wikilarge_fr"
-DS_KEY_ORANGESUM = "orangesum"
 
 AVAILABLE_DATASETS = {
     DS_KEY_ETR_FR: load_etr_fr,
