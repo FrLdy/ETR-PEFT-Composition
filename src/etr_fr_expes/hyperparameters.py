@@ -38,9 +38,6 @@ def lora_config_grid_search(adapter_name):
             dropout=tune.grid_search([0.0, 0.05, 0.1]),
             attn_matrices=tune.grid_search(
                 [
-                    ["q"],
-                    ["k"],
-                    ["v"],
                     ["q", "k"],
                     ["q", "v"],
                     ["k", "v"],
