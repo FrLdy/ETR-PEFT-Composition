@@ -24,7 +24,7 @@ class ETRTunerConfig(TunerConfig):
 
 @dataclass
 class ETRTrainingConfig(TrainingConfig):
-    tasks: List[str] = field(
+    train_tasks: List[str] = field(
         default_factory=lambda: [
             DS_KEY_ETR_FR,
             DS_KEY_WIKILARGE_FR,
