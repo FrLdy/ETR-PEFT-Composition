@@ -62,6 +62,7 @@ class TrainingConfig:
     train_tasks: List[str] = field(default_factory=list)
     validation_tasks: List[str] = field(default_factory=list)
     test_tasks: List[str] = field(default_factory=list)
+    task_to_task_ids: Optional[Dict] = None
     data_config: Optional[DataConfig] = None
     model_class: Optional[Union[type, Type[PreTrainedModel]]] = None
     get_metrics_fn: Optional[Callable] = None

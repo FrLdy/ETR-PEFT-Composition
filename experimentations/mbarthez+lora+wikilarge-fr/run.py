@@ -1,7 +1,11 @@
 from transformers import AutoModelForSeq2SeqLM
 
 from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
-from etr_fr_expes.dataset import DS_KEY_WIKILARGE_FR
+from etr_fr_expes.dataset import (
+    DS_KEY_ETR_FR,
+    DS_KEY_ETR_FR_POLITIC,
+    DS_KEY_WIKILARGE_FR,
+)
 from etr_fr_expes.hyperparameters import (
     default_training_kwargs,
     lora_config_grid_search,
@@ -14,8 +18,8 @@ from expes.tuner import TrainFuncFactories
 # To be completed or import an predefined
 training_config = ETRTrainingConfig(
     train_tasks=[DS_KEY_WIKILARGE_FR],
-    validation_tasks=[DS_KEY_WIKILARGE_FR],
-    test_tasks=[DS_KEY_WIKILARGE_FR],
+    validation_tasks=[DS_KEY_WIKILARGE_FR, DS_KEY_ETR_FR],
+    test_tasks=[DS_KEY_WIKILARGE_FR, DS_KEY_ETR_FR, DS_KEY_ETR_FR_POLITIC],
     is_causal_lm=False,
     data_config=ETRDataConfig(
         tokenize_dataset=True,
@@ -31,11 +35,11 @@ training_config = ETRTrainingConfig(
     training_kwargs={
         **training_kwargs_grid_search(),
         **default_training_kwargs(),
-        "num_train_epochs": 10,
+        "num_train_epochs": 8,
     },
 )
 tuner_config = ETRTunerConfig(
-    grace_period=5,
+    grace_period=4,
     metric=f"eval_{DS_KEY_WIKILARGE_FR}_{METRIC_KEY_SRB}",
 )
 

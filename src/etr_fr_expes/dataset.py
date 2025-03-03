@@ -10,6 +10,7 @@ SRC_KEY = "src"
 DST_KEY = "dst"
 
 DS_KEY_ETR_FR = "etr_fr"
+DS_KEY_ETR_FR_POLITIC = "etr_fr_politic"
 DS_KEY_WIKILARGE_FR = "wikilarge_fr"
 DS_KEY_ORANGESUM = "orangesum"
 
@@ -102,8 +103,39 @@ def load_etr_fr(
     return dataset_dict
 
 
+def load_etr_fr_politic(
+    location: Optional[Union[str, Path]] = None,
+    use_cache=True,
+):
+
+    cache_location = HF_DATASETS_CACHE / DS_KEY_ETR_FR_POLITIC
+
+    if use_cache and cache_location.exists():
+        return load_from_disk(cache_location)
+
+    location = location or os.environ.get("ETR_FR_POLITIC_DIR")
+    assert location is not None
+    location = Path(location).resolve()
+    source_location = location / "sources"
+    file_paths = {
+        "test": str(source_location / "test.json"),
+    }
+
+    dataset_dict = (
+        load_dataset("json", data_files=file_paths)
+        .rename_columns({"original": SRC_KEY, "falc": DST_KEY})
+        .remove_columns("id")
+    )
+
+    if use_cache:
+        dataset_dict.save_to_disk(cache_location)
+
+    return dataset_dict
+
+
 AVAILABLE_DATASETS = {
     DS_KEY_ETR_FR: load_etr_fr,
+    DS_KEY_ETR_FR_POLITIC: load_etr_fr_politic,
     DS_KEY_WIKILARGE_FR: load_wikilarge_fr,
     DS_KEY_ORANGESUM: load_orangesum,
 }

@@ -1,16 +1,15 @@
 import unittest
 from pathlib import Path
 
-from datasets import DatasetDict
+from datasets import DatasetDict, splits
 
-from expes.dataset import (
-    DST_KEY,
-    SRC_KEY,
-    build_mtl_dataset,
+from etr_fr_expes.dataset import (
     load_etr_fr,
+    load_etr_fr_politic,
     load_orangesum,
     load_wikilarge_fr,
 )
+from expes.dataset import DST_KEY, SRC_KEY, build_mtl_dataset
 
 from .utils import get_mtl_dataset, lorem_ipsum_dataset
 
@@ -21,12 +20,13 @@ class TestLoadDatasets(unittest.TestCase):
     columns = [SRC_KEY, DST_KEY]
     splits = ["train", "test", "validation"]
 
-    def run_test(self, dataset):
-        assert all(key in dataset for key in self.splits)
-        assert all(len(dataset[key]) > 0 for key in self.splits)
+    def run_test(self, dataset, splits=None):
+        splits = splits or self.splits
+        assert all(key in dataset for key in splits)
+        assert all(len(dataset[key]) > 0 for key in splits)
         assert all(
             all(col in dataset[key].column_names for col in self.columns)
-            for key in self.splits
+            for key in splits
         )
 
     def test_load_orangesum(self):
@@ -48,6 +48,14 @@ class TestLoadDatasets(unittest.TestCase):
         self.run_test(dataset)
         dataset = load_etr_fr(location, use_cache=True)
         self.run_test(dataset)
+
+    def test_load_etr_fr_politic(self):
+        location = self.data_dir / "etr-fr-politic"
+        assert location.exists()
+        dataset = load_etr_fr_politic(location, use_cache=False)
+        self.run_test(dataset, splits=["test"])
+        dataset = load_etr_fr_politic(location, use_cache=True)
+        self.run_test(dataset, splits=["test"])
 
 
 class TestDataset(unittest.TestCase):

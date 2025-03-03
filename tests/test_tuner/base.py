@@ -8,11 +8,15 @@ import adapters
 from adapters.composition import MultiTask
 from datasets import Dataset, DatasetDict
 from ray import tune
+from transformers.utils.dummy_pt_objects import (
+    TableTransformerForObjectDetection,
+)
 
 from etr_fr_expes.config import ETRDataConfig
 from etr_fr_expes.dataset import (
     AVAILABLE_DATASETS,
     DS_KEY_ETR_FR,
+    DS_KEY_ETR_FR_POLITIC,
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
 )
@@ -35,6 +39,7 @@ def get_begug_dataset_factory_fn():
                 )
             else:
                 datasets[k] = v.select(n_samples)
+
         return datasets
 
     return factory_fn
@@ -49,6 +54,10 @@ class BaseRayTunerTest:
 
     tasks = [DS_KEY_ETR_FR]
     eval_tasks = [DS_KEY_ETR_FR]
+    test_tasks = [
+        DS_KEY_ETR_FR,
+    ]
+    task_to_task_ids = {DS_KEY_ETR_FR: 0, DS_KEY_ETR_FR_POLITIC: 0}
     configs_to_test = [
         (
             {
@@ -77,7 +86,8 @@ class BaseRayTunerTest:
         training_config = TrainingConfig(
             train_tasks=self.tasks,
             validation_tasks=self.eval_tasks,
-            test_tasks=self.eval_tasks,
+            test_tasks=self.test_tasks,
+            task_to_task_ids=self.task_to_task_ids,
             data_config=ETRDataConfig(
                 get_datasets=get_begug_dataset_factory_fn(),
                 **self.data_config_special_kwargs,

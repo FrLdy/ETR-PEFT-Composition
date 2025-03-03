@@ -1,4 +1,5 @@
 from functools import partial
+from optparse import Option
 from typing import Dict, List, Optional
 
 from datasets import DatasetDict, concatenate_datasets, interleave_datasets
@@ -22,10 +23,17 @@ def build_mtl_dataset(
     train_tasks: List[str],
     validation_tasks: List[str],
     test_tasks: List[str],
+    task_to_task_ids: Optional[Dict] = None,
     sampling_strategy: Optional[SamplingStrategy] = None,
 ):
     datasets = {
-        ds_name: datasets[ds_name].map(lambda _: {"task_ids": i})
+        ds_name: datasets[ds_name].map(
+            lambda _: {
+                "task_ids": (
+                    i if task_to_task_ids is None else task_to_task_ids[ds_name]
+                )
+            }
+        )
         for i, ds_name in enumerate(datasets.keys())
     }
 
@@ -45,7 +53,7 @@ def build_mtl_dataset(
             {
                 name: dset[split]
                 for name, dset in datasets.items()
-                if name in tasks
+                if name in tasks and split in dset
             }
         )
         if interleave is not None:
@@ -71,12 +79,12 @@ class MTLDatasetFactory:
         train_tasks = config.train_tasks
         eval_tasks = config.validation_tasks
         test_tasks = config.test_tasks
-        stopping_strategy = config.data_config.sampling_strategy
+        sampling_strategy = config.data_config.sampling_strategy
         hash = "{train_tasks}/{eval_tasks}/{test_tasks}/{stopping_strategy}".format(
             train_tasks=";".join(train_tasks),
             eval_tasks=";".join(eval_tasks),
             test_tasks=";".join(test_tasks),
-            stopping_strategy=stopping_strategy,
+            stopping_strategy=sampling_strategy,
         )
         if self.singleton and hash in self._prepared_datasets:
             prepared_dataset = self._prepared_datasets[hash]
@@ -85,7 +93,12 @@ class MTLDatasetFactory:
                 set([*train_tasks, *eval_tasks, *test_tasks])
             )
             prepared_dataset = build_mtl_dataset(
-                datasets, train_tasks, eval_tasks, test_tasks, stopping_strategy
+                datasets,
+                train_tasks,
+                eval_tasks,
+                test_tasks,
+                task_to_task_ids=config.task_to_task_ids,
+                sampling_strategy=sampling_strategy,
             )
 
         if self.singleton and hash not in self._prepared_datasets:
