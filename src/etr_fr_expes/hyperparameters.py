@@ -28,7 +28,7 @@ def default_training_kwargs():
 
 def training_kwargs_grid_search():
     return dict(
-        learning_rate=tune.grid_search([1e-5, 2e-5, 5e-5, 1e-4]),
+        learning_rate=tune.grid_search([2e-5, 5e-5, 1e-4]),
     )
 
 
@@ -43,7 +43,7 @@ def lora_config_grid_search(adapter_name):
                     ["q", "k", "v"],
                 ]
             ),
-            r=tune.grid_search([8, 16, 32, 64, 128]),
+            r=tune.grid_search([16, 32, 64, 128]),
             output_lora=tune.grid_search([True, False]),
             alpha=sample_from_adapter(
                 adapter_name=adapter_name, adapter_param="r"
