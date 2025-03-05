@@ -186,26 +186,12 @@ class BaseRayTunerTest:
     def run_result_grid_tests(self, result_grid):
         self.assertListEqual(result_grid.errors, [])
 
-        required_metrics = [
-            "loss",
-            "epoch",
-            "test_{task}_texts",
-            "eval_{task}_texts",
-            "test_{task}_loss",
-            "eval_{task}_loss",
-        ]
         for result in result_grid._results:
+            self.assertIn("loss", result.metrics)
+            self.assertIn("epoch", result.metrics)
             for task in self.eval_tasks:
-                for required_metric in required_metrics:
-                    self.assertIn(
-                        required_metric.format(task=task), result.metrics
-                    )
-
-                test_texts = result.metrics[
-                    "test_{task}_texts".format(task=task)
-                ]
-                eval_texts = result.metrics[
-                    "eval_{task}_texts".format(task=task)
-                ]
-                self.assertNotEqual(test_texts["inputs"], eval_texts["inputs"])
-                self.assertNotEqual(test_texts["labels"], eval_texts["labels"])
+                self.assertIn(f"eval_{task}_texts", result.metrics)
+                self.assertIn(f"eval_{task}_loss", result.metrics)
+            for task in self.test_tasks:
+                self.assertIn(f"test_{task}_texts", result.metrics)
+                self.assertIn(f"test_{task}_loss", result.metrics)
