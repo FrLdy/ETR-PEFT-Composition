@@ -67,7 +67,7 @@ def load_wikilarge_fr(
         )
         dataset_dict[split] = dataset
 
-    if use_cache:
+    if not use_cache:
         dataset_dict.save_to_disk(cache_location)
 
     return dataset_dict
@@ -97,7 +97,7 @@ def load_etr_fr(
         {"original": SRC_KEY, "falc": DST_KEY}
     )
 
-    if use_cache:
+    if not use_cache:
         dataset_dict.save_to_disk(cache_location)
 
     return dataset_dict
@@ -127,7 +127,7 @@ def load_etr_fr_politic(
         .remove_columns("id")
     )
 
-    if use_cache:
+    if not use_cache:
         dataset_dict.save_to_disk(cache_location)
 
     return dataset_dict

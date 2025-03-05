@@ -53,11 +53,16 @@ class BaseRayTunerTest:
     data_config_special_kwargs = None
 
     tasks = [DS_KEY_ETR_FR]
-    eval_tasks = [DS_KEY_ETR_FR]
+    eval_tasks = [DS_KEY_ETR_FR, DS_KEY_WIKILARGE_FR]
     test_tasks = [
         DS_KEY_ETR_FR,
+        DS_KEY_ETR_FR_POLITIC,
     ]
-    task_to_task_ids = {DS_KEY_ETR_FR: 0, DS_KEY_ETR_FR_POLITIC: 0}
+    task_to_task_ids = {
+        DS_KEY_ETR_FR: 0,
+        DS_KEY_ETR_FR_POLITIC: 0,
+        DS_KEY_WIKILARGE_FR: 1,
+    }
     configs_to_test = [
         (
             {
@@ -66,10 +71,10 @@ class BaseRayTunerTest:
                         init_weights="bert",
                         r=tune.randint(2, 10),
                     ),
-                    task_names=tasks,
+                    task_names=eval_tasks,
                 )
             },
-            MultiTask(*tasks),
+            MultiTask(*eval_tasks),
         ),
         (
             {
