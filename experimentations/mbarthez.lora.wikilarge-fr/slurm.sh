@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=mbarthez+lora+wikilarge-fr
+#SBATCH --job-name=mbarthez.lora.wikilarge-fr
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --err=logs/%x-%j.err
 #SBATCH --mail-type ALL
 #SBATCH --mail-user francois.ledoyen@unicaen.fr
 
-#SBATCH --time=48:00:00 
+#SBATCH --time=24:00:00 
 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 

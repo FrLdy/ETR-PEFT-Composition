@@ -6,11 +6,9 @@ from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR_POLITIC,
     DS_KEY_WIKILARGE_FR,
 )
-from etr_fr_expes.hyperparameters import (
-    default_training_kwargs,
-    lora_config_grid_search,
-    training_kwargs_grid_search,
-)
+from etr_fr_expes.hyperparameters import default_training_kwargs
+from etr_fr_expes.hyperparameters.default import training_kwargs_grid_search
+from etr_fr_expes.hyperparameters.lora_sta import lora_config_grid_search
 from etr_fr_expes.metric import METRIC_KEY_SRB
 from expes.cli import tuner_cli
 from expes.tuner import TrainFuncFactories
@@ -23,7 +21,7 @@ training_config = ETRTrainingConfig(
     is_causal_lm=False,
     data_config=ETRDataConfig(
         tokenize_dataset=True,
-        input_max_length=100,
+        input_max_length=200,
         output_max_length=100,
     ),
     adapter_configs=lora_config_grid_search("lora_wikilarge_fr"),
@@ -39,7 +37,6 @@ training_config = ETRTrainingConfig(
     },
 )
 tuner_config = ETRTunerConfig(
-    grace_period=4,
     metric=f"eval_{DS_KEY_WIKILARGE_FR}_{METRIC_KEY_SRB}",
 )
 
