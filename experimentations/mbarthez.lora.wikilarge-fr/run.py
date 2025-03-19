@@ -6,8 +6,10 @@ from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR_POLITIC,
     DS_KEY_WIKILARGE_FR,
 )
-from etr_fr_expes.hyperparameters import default_training_kwargs
-from etr_fr_expes.hyperparameters.default import training_kwargs_grid_search
+from etr_fr_expes.hyperparameters.default import (
+    default_training_kwargs,
+    training_kwargs_grid_search,
+)
 from etr_fr_expes.hyperparameters.lora_sta import lora_config_grid_search
 from etr_fr_expes.metric import METRIC_KEY_SRB
 from expes.cli import tuner_cli

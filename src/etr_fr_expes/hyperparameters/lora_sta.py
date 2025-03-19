@@ -1,7 +1,7 @@
 from adapters.configuration.adapter_config import LoRAConfig
 from ray import tune
 
-from etr_fr_expes.hyperparameters import sample_from_adapter
+from etr_fr_expes.hyperparameters.utils import sample_from_adapter
 
 
 def lora_config_grid_search(adapter_name):
