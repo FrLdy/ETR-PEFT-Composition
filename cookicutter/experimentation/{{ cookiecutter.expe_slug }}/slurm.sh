@@ -11,7 +11,7 @@
 #SBATCH --ntasks-per-node=1 
 
 #SBATCH --partition={{ cookiecutter.partition }}
-#SBATCH --cpus-per-gpu=8
+#SBATCH --cpus-per-gpu={{ cookiecutter.cpus_per_gpus }}
 #SBATCH --gpus-per-node={{ cookiecutter.gpus }}
 #SBATCH --gres=gpu:{{ cookiecutter.gpus }}
 
