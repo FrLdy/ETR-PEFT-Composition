@@ -192,6 +192,8 @@ class ETRMetrics:
             )
         )
 
+        res.update({"n_samples": len(sources)})
+
         return {k: round(v, 4) for k, v in res.items()}
 
     def __call__(self, predictions, references, sources):
