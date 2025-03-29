@@ -15,7 +15,7 @@ MAIN_DS_KEY = DS_KEY_ETR_FR
 training_config = ETRTrainingConfig(
     train_tasks=[MAIN_DS_KEY],
     validation_tasks=[MAIN_DS_KEY],
-    test_tasks=[MAIN_DS_KEY, DS_KEY_ETR_FR_POLITIC],
+    test_tasks=[MAIN_DS_KEY],
     is_causal_lm=False,
     data_config=ETRDataConfig(
         sampling_strategy="balanced",
@@ -28,7 +28,7 @@ training_config = ETRTrainingConfig(
     model_checkpoint="facebook/mbart-large-50",
     model_class=AutoModelForSeq2SeqLM,
     tokenizer_kwargs={"src_lang": "fr_XX", "tgt_lang": "fr_XX"},
-    generation_config={"max_new_tokens": 100, "num_beams": 4},
+    generation_config={"max_new_tokens": 256, "num_beams": 4},
     training_kwargs={
         **training_kwargs_grid_search(),
         **default_training_kwargs(),

@@ -2,8 +2,6 @@ from transformers import AutoModelForSeq2SeqLM
 
 from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
 from etr_fr_expes.dataset import (
-    DS_KEY_ETR_FR,
-    DS_KEY_ETR_FR_POLITIC,
     DS_KEY_WIKILARGE_FR,
 )
 from etr_fr_expes.hyperparameters.default import (
@@ -15,11 +13,12 @@ from etr_fr_expes.metric import METRIC_KEY_SRB
 from expes.cli import tuner_cli
 from expes.tuner import TrainFuncFactories
 
-# To be completed or import an predefined
+MAIN_DS_KEY = DS_KEY_WIKILARGE_FR
+
 training_config = ETRTrainingConfig(
-    train_tasks=[DS_KEY_WIKILARGE_FR],
-    validation_tasks=[DS_KEY_WIKILARGE_FR, DS_KEY_ETR_FR],
-    test_tasks=[DS_KEY_WIKILARGE_FR, DS_KEY_ETR_FR, DS_KEY_ETR_FR_POLITIC],
+    train_tasks=[MAIN_DS_KEY],
+    validation_tasks=[MAIN_DS_KEY],
+    test_tasks=[MAIN_DS_KEY],
     is_causal_lm=False,
     data_config=ETRDataConfig(
         tokenize_dataset=True,

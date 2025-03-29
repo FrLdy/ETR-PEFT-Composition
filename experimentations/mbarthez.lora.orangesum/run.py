@@ -21,8 +21,8 @@ MAIN_DS_KEY = DS_KEY_ORANGESUM
 # To be completed or import an predefined
 training_config = ETRTrainingConfig(
     train_tasks=[MAIN_DS_KEY],
-    validation_tasks=[MAIN_DS_KEY, DS_KEY_ETR_FR],
-    test_tasks=[MAIN_DS_KEY, DS_KEY_ETR_FR, DS_KEY_ETR_FR_POLITIC],
+    validation_tasks=[MAIN_DS_KEY],
+    test_tasks=[MAIN_DS_KEY],
     is_causal_lm=False,
     data_config=ETRDataConfig(
         tokenize_dataset=True,
