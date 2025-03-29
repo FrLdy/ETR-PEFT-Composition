@@ -8,7 +8,7 @@ def default_training_kwargs():
         adam_beta2=0.999,
         adam_epsilon=1e-8,
         per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_eval_batch_size=1,
         gradient_accumulation_steps=1,
         eval_accumulation_steps=1,
         lr_scheduler_type="linear",
