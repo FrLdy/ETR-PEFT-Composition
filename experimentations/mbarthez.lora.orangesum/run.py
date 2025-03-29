@@ -43,6 +43,7 @@ training_config = ETRTrainingConfig(
 )
 tuner_config = ETRTunerConfig(
     metric=f"eval_{MAIN_DS_KEY}_{METRIC_KEY_ROUGEL}",
+    mode="max",
 )
 
 if __name__ == "__main__":

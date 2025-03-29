@@ -9,7 +9,7 @@ from etr_fr_expes.hyperparameters.default import (
     training_kwargs_grid_search,
 )
 from etr_fr_expes.hyperparameters.lora_sta import lora_config_grid_search
-from etr_fr_expes.metric import METRIC_KEY_SRB
+from etr_fr_expes.metric import METRIC_KEY_BLEU, METRIC_KEY_SARI, METRIC_KEY_SRB
 from expes.cli import tuner_cli
 from expes.tuner import TrainFuncFactories
 
@@ -38,7 +38,8 @@ training_config = ETRTrainingConfig(
     },
 )
 tuner_config = ETRTunerConfig(
-    metric=f"eval_{DS_KEY_WIKILARGE_FR}_{METRIC_KEY_SRB}",
+    metric=f"eval_{MAIN_DS_KEY}_{METRIC_KEY_SARI}",
+    mode="max",
 )
 
 if __name__ == "__main__":
