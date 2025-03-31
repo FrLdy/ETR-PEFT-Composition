@@ -1,9 +1,13 @@
 {
-  "expe_name": "Experiment",
+  "model": null,
+  "method": null,
+  "dataset": null,
+  "expe_name": "{{ cookiecutter.model }}.{{ cookiecutter.method }}.{{ cookiecutter.dataset }}",
   "expe_slug": "{{ cookiecutter.expe_name.lower().replace(' ', '_') }}",
   "author_mail": "francois.ledoyen@unicaen.fr",
 
   "partition": "gpu_all",
+  "reservation": "",
   "time": "48:00:00",
   "nodes": 1,
   "gpus": 8,

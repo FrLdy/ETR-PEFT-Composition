@@ -6,11 +6,14 @@
 #SBATCH --mail-user {{ cookiecutter.author_mail }}
 
 #SBATCH --time={{ cookiecutter.time }} 
-
 #SBATCH --nodes={{ cookiecutter.nodes }}
 #SBATCH --ntasks-per-node=1 
 
+
 #SBATCH --partition={{ cookiecutter.partition }}
+{% if cookiecutter.reservation and cookiecutter.reservation != "" %}
+#SBATCH --reservation={{ cookiecutter.reservation }}
+{% endif %}
 #SBATCH --cpus-per-gpu={{ cookiecutter.cpus_per_gpus }}
 #SBATCH --gpus-per-node={{ cookiecutter.gpus }}
 #SBATCH --gres=gpu:{{ cookiecutter.gpus }}
