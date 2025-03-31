@@ -60,7 +60,7 @@ class TrainFuncFactories:
             tokenizer = chat_template.apply_to_tokenizer(tokenizer)
 
         if eval_pred_manager_cls is not None:
-            tokenizer.eval_pred_manager = eval_pred_manager_cls(tokenizer)
+            tokenizer.eval_pred_manager = eval_pred_manager_cls(tokenizer=tokenizer)
 
         return tokenizer
 

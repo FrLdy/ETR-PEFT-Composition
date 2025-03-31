@@ -7,6 +7,7 @@ import torch
 from adapters.composition import AdapterCompositionBlock
 from adapters.trainer import Seq2SeqAdapterTrainer
 from ray.air.config import SampleRange
+from transformers import AutoModelForCausalLM
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 from transformers.trainer_seq2seq import Seq2SeqTrainer
@@ -83,6 +84,10 @@ class TrainingConfig:
 
     def __post_init__(self):
         assert self.model_config or self.model_checkpoint
+
+        if isinstance(self.model_class, AutoModelForCausalLM):
+            self.is_causal_lm = True
+
         if self.model_checkpoint is None:
             assert self.tokenizer_checkpoint
         if (

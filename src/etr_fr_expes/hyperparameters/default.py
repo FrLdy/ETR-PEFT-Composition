@@ -15,6 +15,15 @@ def default_training_kwargs():
         warmup_ratio=0.1,
     )
 
+def llm_default_training_kwargs():
+    return {
+        **default_training_kwargs(),
+        **dict(
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=4,
+        )
+    }
+
 
 def training_kwargs_grid_search():
     return dict(
