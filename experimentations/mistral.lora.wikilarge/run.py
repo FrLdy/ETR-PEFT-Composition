@@ -35,15 +35,16 @@ training_config = ETRTrainingConfig(
     training_kwargs={
         **training_kwargs_grid_search(),
         **default_training_kwargs(),
-        "num_train_epochs": 6,
+        "num_train_epochs": 4,
         "bf16":True,
-        "per_device_train_batch_size":1,
+        "per_device_train_batch_size":4,
         "gradient_accumulation_steps":4,
     },
 )
 tuner_config = ETRTunerConfig(
     metric=f"eval_{MAIN_DS_KEY}_{MAIN_METRIC_KEY}",
     mode="max",
+    robustness_num_samples=0,
 )
 
 if __name__ == "__main__":

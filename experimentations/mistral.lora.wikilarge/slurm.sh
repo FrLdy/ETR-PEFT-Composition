@@ -14,7 +14,7 @@
 
 #SBATCH --reservation=c23meso
 
-#SBATCH --cpus-per-gpu=16
+#SBATCH --cpus-per-gpu=20
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
 
