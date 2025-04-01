@@ -62,7 +62,7 @@ else
     ln -s $results_dir results
 fi
 
-module load aidl/pytorch/2.0.0-cuda11.7
+module load aidl/pytorch/2.6.0-py3.12-cuda12.6
 srun python ./run.py \
     --storage_path=$results_dir \
     --expe_name=$SLURM_JOB_NAME \
