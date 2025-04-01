@@ -12,7 +12,7 @@
 #SBATCH --partition=gpu_h200
 #SBATCH --reservation=c23meso
 
-#SBATCH --cpus-per-gpu=8
+#SBATCH --cpus-per-gpu=16
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
 

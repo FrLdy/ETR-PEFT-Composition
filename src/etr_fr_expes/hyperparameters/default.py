@@ -3,6 +3,8 @@ from ray import tune
 
 def default_training_kwargs():
     return dict(
+        do_train=True,
+        do_eval=False,
         weight_decay=1e-1,
         adam_beta1=0.9,
         adam_beta2=0.999,
@@ -19,7 +21,7 @@ def llm_default_training_kwargs():
     return {
         **default_training_kwargs(),
         **dict(
-            per_device_train_batch_size=1,
+            per_device_train_batch_size=4,
             gradient_accumulation_steps=4,
         )
     }
