@@ -37,7 +37,7 @@ training_config = ETRTrainingConfig(
     },
 )
 tuner_config = ETRTunerConfig(
-    metrics=f"eval_{MAIN_DS_KEY}_{METRIC_KEY_SRB}",
+    metric=f"eval_{MAIN_DS_KEY}_{METRIC_KEY_SRB}",
     mode="max",
 )
 
