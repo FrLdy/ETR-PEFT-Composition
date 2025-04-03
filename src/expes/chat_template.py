@@ -1,7 +1,11 @@
-from dataclasses import dataclass
 from functools import partial
 
-from expes.eval_pred_manager import ChatEvalPredictionManager
+CHAT_TEMPLATE_IDS = {
+    "meta-llama/Llama-3.1-8B": {
+        "### Input:": [14711, 5688, 25],
+        "### Output:": [17010, 9442, 25],
+    }
+}
 
 
 class ChatTemplate:
@@ -34,5 +38,13 @@ class ChatTemplate:
 
         return tokenizer
 
+    def get_input_prefix_ids(self, checkpoint):
+        return CHAT_TEMPLATE_IDS.get(checkpoint, {}).get(self.input_prefix, None)
+
+    def get_output_prefix_ids(self, checkpoint):
+        return CHAT_TEMPLATE_IDS.get(checkpoint, {}).get(self.output_prefix, None)
+
+
 
 causal_chat_template = ChatTemplate()
+

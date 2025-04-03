@@ -3,7 +3,9 @@ from functools import partial
 from pathlib import Path
 from typing import Dict, Optional
 
+import ray
 from adapters import AdapterConfig, init
+from nltk import data
 from ray import tune
 from ray.train import CheckpointConfig, RunConfig, ScalingConfig
 from ray.train.huggingface.transformers import prepare_trainer
@@ -14,12 +16,13 @@ from transformers.data.data_collator import DataCollatorForSeq2Seq
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.trainer import Trainer
 
+from expes import chat_template
 from expes.callbacks import (
     LogParametersTrainedCallback,
     RayTrainReportCallback,
     TestModelEachEpochCallback,
 )
-from expes.config import RessourcesConfig, TrainingConfig, TunerConfig
+from expes.config import DataConfig, RessourcesConfig, TrainingConfig, TunerConfig
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
 from expes.metric import compute_metrics
 
@@ -86,15 +89,23 @@ class TrainFuncFactories:
         return model
 
     def setup_adapters(self, model, config: TrainingConfig):
+        training_args = self.get_training_args(config)
+
         init(model)
         adapter_configs = config.adapter_configs
         for adapter_name, adapter_conf in adapter_configs.items():
-            adapter_conf = AdapterConfig.load(adapter_conf)
-            model.add_adapter(adapter_name, adapter_conf)
+            if isinstance(adapter_conf, str):
+                model.load_adapter(adapter_conf, load_as=adapter_name)
+            else:
+                adapter_conf = AdapterConfig.load(adapter_conf)
+                model.add_adapter(adapter_name, adapter_conf)
+
         model.active_adapters = config.adapter_activation or list(
             adapter_configs.keys()
         )
-        model.train_adapter(model.active_adapters)
+
+        if training_args.do_train:
+            model.train_adapter(model.active_adapters)
 
         return model
 
@@ -102,15 +113,25 @@ class TrainFuncFactories:
         return config.data_config.get_datasets(config, tokenizer)
 
     def get_datacollators(self, config: TrainingConfig, tokenizer, model):
+        data_config: DataConfig = config.data_config
         if config.is_causal_lm:
+            chat_template = config.chat_template
+            tokenizer_checkpoint = config.tokenizer_checkpoint
+            instruction_template_ids=chat_template.get_input_prefix_ids(tokenizer_checkpoint) or data_config.instruction_template_ids
+            response_template_ids=chat_template.get_output_prefix_ids(tokenizer_checkpoint) or data_config.response_template_ids
+            kwargs = dict(
+                tokenizer=tokenizer,
+                loss_completion_only=config.loss_completion_only,
+                instruction_template=instruction_template_ids,
+                response_template=response_template_ids,
+            )
+        
             return {
                 "data_collator": DataCollatorForSeq2SeqCausalLM(
-                    tokenizer=tokenizer,
-                    loss_completion_only=True,
+                    **kwargs,
                 ),
                 "eval_data_collator": DataCollatorForSeq2SeqCausalLM(
-                    tokenizer=tokenizer,
-                    loss_completion_only=True,
+                    **kwargs,
                     eval_mode=True,
                 ),
             }
@@ -130,8 +151,9 @@ class TrainFuncFactories:
         )
 
     def get_training_args(self, config: TrainingConfig):
-        return config.training_args_cls(
+        training_args = dict(
             output_dir=".",
+            do_train=True,
             eval_strategy="epoch",
             save_strategy="epoch",
             logging_strategy="epoch",
@@ -141,17 +163,54 @@ class TrainFuncFactories:
             push_to_hub=False,
             disable_tqdm=True,
             report_to="none",
-            **config.training_kwargs,
         )
+        training_args.update(**config.training_kwargs)
+        return config.training_args_cls(**training_args)
 
     def get_trainer(self, config: TrainingConfig, **kwargs):
         test_dataset = kwargs.pop("test_dataset", None)
         trainer = config.trainer_cls(**kwargs)
+        trainer.test_dataset = test_dataset
         trainer.add_callback(LogParametersTrainedCallback(trainer))
         if test_dataset is not None:
             trainer.add_callback(
                 TestModelEachEpochCallback(trainer, test_dataset=test_dataset)
             )
+        return trainer
+
+    def __call__(self, config):
+        data_config = self.training_config.data_config.__class__(
+            **config.pop("data_config")
+        )
+        config = self.training_config.__class__(
+            **config, data_config=data_config
+        )
+        tokenizer = self.get_tokenizer(config)
+        model = self.get_model(config, tokenizer)
+        data_collators = self.get_datacollators(
+            config, tokenizer, model
+        )
+
+        compute_metrics = self.get_compute_metrics_fn(tokenizer)
+        datasets = self.get_datasets(config, tokenizer)
+        train_dataset = datasets.get("train")
+        eval_dataset = datasets.get("validation")
+        test_dataset = datasets.get("test")
+
+        training_args = self.get_training_args(config)
+
+        trainer = self.get_trainer(
+            config=config,
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=tokenizer,
+            compute_metrics=compute_metrics,
+            **data_collators,
+            test_dataset=test_dataset,
+        )
+
         return trainer
 
 
@@ -186,43 +245,30 @@ class RayTuner:
             best_config_robustness_results=robustness_results,
         )
 
+    def evaluate(self, trainer, split="eval"):
+        metrics = {}
+        datasets = getattr(trainer, f"{split}_dataset", {}) or {}
+        for name, dataset in datasets.items():
+            metrics.update(trainer.evaluate(eval_dataset=dataset, metric_key_prefix=f"{split}_{name}"))
+
+        return metrics
+
+
     def train_func(self, config):
-        # TODO : use automatic class finder to recreate dataclass object
-        data_config = self.factories.training_config.data_config.__class__(
-            **config.pop("data_config")
-        )
-        config = self.factories.training_config.__class__(
-            **config, data_config=data_config
-        )
-        tokenizer = self.factories.get_tokenizer(config)
-        model = self.factories.get_model(config, tokenizer)
-        data_collators = self.factories.get_datacollators(
-            config, tokenizer, model
-        )
-
-        compute_metrics = self.factories.get_compute_metrics_fn(tokenizer)
-        datasets = self.factories.get_datasets(config, tokenizer)
-        train_dataset = datasets.get("train")
-        eval_dataset = datasets.get("validation")
-        test_dataset = datasets.get("test")
-
-        training_args = self.factories.get_training_args(config)
-
-        trainer = self.factories.get_trainer(
-            config=config,
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
-            processing_class=tokenizer,
-            compute_metrics=compute_metrics,
-            **data_collators,
-            test_dataset=test_dataset,
-        )
-
+        trainer = self.factories(config)
         trainer.add_callback(RayTrainReportCallback())
         trainer = prepare_trainer(trainer)
-        trainer.train()
+        
+        if trainer.args.do_train:
+            trainer.train()
+        elif trainer.args.do_eval:
+            # TODO: eval with all datasets iteratively
+            metrics = {
+                **self.evaluate(trainer, "eval"),
+                **self.evaluate(trainer, "test"),
+            }
+            if metrics: 
+                ray.train.report(metrics=metrics, checkpoint=None)
 
     def hp_search(self):
         param_space = self.factories.get_hp_space()

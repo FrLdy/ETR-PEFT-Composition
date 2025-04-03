@@ -56,6 +56,8 @@ class DataConfig:
     tokenize_dataset: bool = False
     input_max_length: int = 128
     output_max_length: int = 128
+    instruction_template_ids: Optional[List[int]]= None
+    response_template_ids: Optional[List[int]]= None
 
 
 @dataclass
@@ -71,6 +73,7 @@ class TrainingConfig:
     eval_pred_manager_cls: Optional[Type[EvalPredManager]] = None
     chat_template: Optional[ChatTemplate] = None
     is_causal_lm: bool = True
+    loss_completion_only: bool = True
     model_config: Optional[PretrainedConfig] = None
     model_checkpoint: Optional[str] = None
     tokenizer_checkpoint: Optional[str] = None
