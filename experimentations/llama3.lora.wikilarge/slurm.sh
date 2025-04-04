@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mistral.lora.wikilarge
+#SBATCH --job-name=llama3.lora.wikilarge
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --err=logs/%x-%j.err
 #SBATCH --mail-type ALL
