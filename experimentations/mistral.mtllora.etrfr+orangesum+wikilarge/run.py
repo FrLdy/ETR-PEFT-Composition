@@ -9,6 +9,7 @@ from etr_fr_expes.dataset import (
     DS_KEY_WIKILARGE_FR,
 )
 from etr_fr_expes.hyperparameters.default import (
+    default_training_kwargs,
     llm_default_training_kwargs,
     training_kwargs_grid_search,
 )
@@ -41,9 +42,11 @@ training_config = ETRTrainingConfig(
     generation_config={"max_new_tokens": 100, "num_beams": 4},
     training_kwargs={
         **training_kwargs_grid_search(),
-        **llm_default_training_kwargs(),
+        **default_training_kwargs(),
         "num_train_epochs": 6,
         "bf16":True,
+        "per_device_train_batch_size":1,
+        "gradient_accumulation_steps":4,
     },
 )
 tuner_config = ETRTunerConfig(
