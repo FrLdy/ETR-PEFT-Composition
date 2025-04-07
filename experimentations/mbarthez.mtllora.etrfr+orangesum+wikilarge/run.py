@@ -47,6 +47,7 @@ training_config = ETRTrainingConfig(
 tuner_config = ETRTunerConfig(
     metric=f"eval_{MAIN_DS_KEY}_{METRIC_KEY_SRB}",
     mode="max",
+    robustness_num_samples=0,
 )
 
 if __name__ == "__main__":
