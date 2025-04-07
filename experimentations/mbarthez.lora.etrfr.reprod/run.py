@@ -47,6 +47,7 @@ training_config = ETRTrainingConfig(
         "learning_rate":tune.grid_search([5e-5]),
         **default_training_kwargs(),
         "num_train_epochs": 30,
+        "fp16": True,
     }
 )
 tuner_config = ETRTunerConfig(
