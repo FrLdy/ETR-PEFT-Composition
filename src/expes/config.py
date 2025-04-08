@@ -25,6 +25,13 @@ from expes.types import SamplingStrategy
 
 
 @dataclass()
+class InferenceConfig:
+    validation_tasks: List[str] = field(default_factory=list)
+    test_tasks: List[str] = field(default_factory=list)
+    task_to_task_ids: Optional[Dict] = None
+    n_samples: int = 5
+
+@dataclass()
 class TunerConfig:
     metric: str
     mode: str
@@ -32,6 +39,9 @@ class TunerConfig:
     robustness_num_samples: int = 5
     grace_period: Optional[int] = None
     num_to_keep: Optional[int] = None
+    push_to_hub: Optional[bool] = False
+    inference_config: Optional[InferenceConfig] = None
+
 
 
 @dataclass()
@@ -126,3 +136,13 @@ class TrainingConfig:
                     ChatEvalPredictionManager,
                     chat_template=self.chat_template,
                 )
+
+    def prepare_config_for_inference(self, inference_config: InferenceConfig):
+        self.validation_tasks = inference_config.validation_tasks
+        self.test_tasks = inference_config.test_tasks
+        self.task_to_task_ids = inference_config.task_to_task_ids
+        self.training_kwargs.update({
+            "do_train": False,
+            "do_eval": True
+        })
+        return self 

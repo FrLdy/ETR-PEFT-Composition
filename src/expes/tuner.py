@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from functools import partial
+from optparse import Option
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -7,14 +8,14 @@ import ray
 from adapters import AdapterConfig, init
 from nltk import data
 from ray import tune
-from ray.train import CheckpointConfig, RunConfig, ScalingConfig
+from ray.train import CheckpointConfig, Result, RunConfig, ScalingConfig
 from ray.train.huggingface.transformers import prepare_trainer
 from ray.train.torch import TorchTrainer
 from ray.tune.result_grid import ResultGrid
 from ray.tune.schedulers.async_hyperband import ASHAScheduler
 from transformers.data.data_collator import DataCollatorForSeq2Seq
 from transformers.models.auto.tokenization_auto import AutoTokenizer
-from transformers.trainer import Trainer
+from transformers.trainer import PREFIX_CHECKPOINT_DIR, Trainer
 
 from expes import chat_template
 from expes.callbacks import (
@@ -22,7 +23,13 @@ from expes.callbacks import (
     RayTrainReportCallback,
     TestModelEachEpochCallback,
 )
-from expes.config import DataConfig, RessourcesConfig, TrainingConfig, TunerConfig
+from expes.config import (
+    DataConfig,
+    InferenceConfig,
+    RessourcesConfig,
+    TrainingConfig,
+    TunerConfig,
+)
 from expes.datacollator import DataCollatorForSeq2SeqCausalLM
 from expes.metric import compute_metrics
 
@@ -31,12 +38,14 @@ from expes.metric import compute_metrics
 class TunerResults:
     hp_search_results: Optional[ResultGrid] = None
     best_config_robustness_results: Optional[ResultGrid] = None
+    best_config_inference_results: Optional[ResultGrid] = None
 
 
 @dataclass
 class TrainFuncFactories:
 
     training_config: TrainingConfig
+    inference_config: Optional[InferenceConfig] = None
 
     def get_hp_space(self, **kwargs):
         return asdict(self.training_config)
@@ -178,6 +187,7 @@ class TrainFuncFactories:
             )
         return trainer
 
+
     def __call__(self, config):
         data_config = self.training_config.data_config.__class__(
             **config.pop("data_config")
@@ -233,16 +243,49 @@ class RayTuner:
         self.factories = factories
 
     def __call__(self) -> TunerResults:
-        hp_search_results = self.hp_search()
-        robustness_results = None
-        if self.tuner_config.robustness_num_samples:
-            robustness_results = self.retrain_with_best_config(
-                hp_search_results
+        result_grid: ResultGrid = self.hp_search()
+        best_result = result_grid.get_best_result(scope="all")
+        best_checkpoint = best_result.get_best_checkpoint(
+            metric=self.tuner_config.metric,
+            mode=self.tuner_config.mode
+        )
+        best_config = best_result.config["train_loop_config"]
+
+        robustness_results = (
+            self._fit(
+                expe_name=f"{self.expe_name}_robustness",
+                param_space=best_config,
+                num_samples=self.tuner_config.robustness_num_samples,
+            )
+            if self.tuner_config.robustness_num_samples 
+            else None
+        )
+        
+        inference_results = None
+        if self.factories.inference_config is not None:
+            _best_config: TrainingConfig = TrainingConfig(**best_config)
+            checkpoint_path = Path(best_checkpoint.path)
+            adapter_configs = _best_config.adapter_configs
+            _best_config.adapter_configs = {
+                adapter_name: (checkpoint_path / PREFIX_CHECKPOINT_DIR / adapter_name).resolve().as_posix()
+                for adapter_name in adapter_configs
+            }
+            
+            _best_config = _best_config.prepare_config_for_inference(self.factories.inference_config) 
+            # print(_best_config) # OK
+
+            inference_results = self._fit(
+                expe_name=f"{self.expe_name}_test_best_model",
+                param_space=asdict(_best_config),
+                num_samples=self.factories.inference_config.n_samples,
             )
 
+            
+
         return TunerResults(
-            hp_search_results=hp_search_results,
+            hp_search_results=result_grid,
             best_config_robustness_results=robustness_results,
+            best_config_inference_results=inference_results,
         )
 
     def evaluate(self, trainer, split="eval"):
@@ -278,19 +321,15 @@ class RayTuner:
             num_samples=self.tuner_config.num_samples,
         )
 
-    def retrain_with_best_config(self, result_grid: tune.ResultGrid):
-        param_space = result_grid.get_best_result().config["train_loop_config"]
-        return self._fit(
-            expe_name=f"{self.expe_name}_robustness",
-            param_space=param_space,
-            num_samples=self.tuner_config.robustness_num_samples,
-        )
+
+    def retrain_with_best_config(self, best_config):
+        return 
 
     def _fit(
         self,
         expe_name: str,
         param_space: Dict,
-        num_samples: int,
+        num_samples: int = 0,
     ):
         path = (self.storage_path / expe_name).resolve().as_posix()
 

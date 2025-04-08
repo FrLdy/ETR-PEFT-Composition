@@ -5,6 +5,7 @@ from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
 from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR,
+    DS_KEY_ETR_FR_POLITIC,
 )
 from etr_fr_expes.hyperparameters.default import (
     llm_default_training_kwargs,
@@ -14,6 +15,7 @@ from etr_fr_expes.hyperparameters.lora_sta import lora_config_grid_search
 from etr_fr_expes.metric import METRIC_KEY_SRB
 from expes.chat_template import ChatTemplate
 from expes.cli import tuner_cli
+from expes.config import InferenceConfig
 from expes.tuner import TrainFuncFactories
 
 MAIN_DS_KEY = DS_KEY_ETR_FR 
@@ -43,6 +45,9 @@ training_config = ETRTrainingConfig(
 tuner_config = ETRTunerConfig(
     metric=f"eval_{MAIN_DS_KEY}_{MAIN_METRIC_KEY}",
     mode="max",
+    inference_config=InferenceConfig(
+        test_tasks=[MAIN_DS_KEY, DS_KEY_ETR_FR_POLITIC]
+    )
 )
 
 if __name__ == "__main__":
