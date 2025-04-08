@@ -13,9 +13,9 @@
 #SBATCH --partition=gpu_h200
 #SBATCH --reservation=c23meso
 
-#SBATCH --cpus-per-gpu=8
-#SBATCH --gpus-per-node=8
-#SBATCH --gres=gpu:8
+#SBATCH --cpus-per-gpu=24
+#SBATCH --gpus-per-node=4
+#SBATCH --mem-per-cpu=10G
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
 
