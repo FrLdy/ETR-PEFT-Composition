@@ -27,7 +27,7 @@ training_config = ETRTrainingConfig(
     ),
     adapter_configs=lora_config_grid_search("lora_wikilarge_fr"),
     adapter_activation="lora_wikilarge_fr",
-    model_checkpoint="facebook/mbart-large-50",
+    model_checkpoint="moussaKam/mbarthez",
     model_class=AutoModelForSeq2SeqLM,
     tokenizer_kwargs={"src_lang": "fr_XX", "tgt_lang": "fr_XX"},
     generation_config={"max_new_tokens": 100, "num_beams": 4},

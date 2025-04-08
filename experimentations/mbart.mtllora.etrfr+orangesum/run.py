@@ -18,7 +18,7 @@ from expes.tuner import TrainFuncFactories
 
 MAIN_DS_KEY = DS_KEY_ETR_FR
 # To be completed or import an predefined
-train_tasks=[MAIN_DS_KEY, DS_KEY_ORANGESUM, DS_KEY_WIKILARGE_FR]
+train_tasks=[MAIN_DS_KEY, DS_KEY_ORANGESUM]
 adapter_names = [f"lora_{task}" for task in train_tasks]
 training_config = ETRTrainingConfig(
     train_tasks=train_tasks,
@@ -33,7 +33,7 @@ training_config = ETRTrainingConfig(
     ),
     adapter_configs=mtllora_config_grid_search(adapter_names),
     adapter_activation=MultiTask(*adapter_names),
-    model_checkpoint="moussaKam/mbarthez",
+    model_checkpoint="facebook/mbart-large-50",
     model_class=AutoModelForSeq2SeqLM,
     tokenizer_kwargs={"src_lang": "fr_XX", "tgt_lang": "fr_XX"},
     generation_config={"max_new_tokens": 256, "num_beams": 4},

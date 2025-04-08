@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mbarthez.lora.etrfr.reprod
+#SBATCH --job-name=mbart.lora.etrfr
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --err=logs/%x-%j.err
 #SBATCH --mail-type ALL
@@ -13,7 +13,7 @@
 #SBATCH --partition=gpu_h200
 #SBATCH --reservation=c23meso
 
-#SBATCH --cpus-per-gpu=20
+#SBATCH --cpus-per-gpu=8
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
 
