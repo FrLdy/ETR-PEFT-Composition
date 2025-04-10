@@ -69,5 +69,5 @@ srun python ./run.py \
     --expe_name=$SLURM_JOB_NAME \
     --ressources_config.use_gpu=true \
     --ressources_config.num_workers=$SLURM_GPUS_ON_NODE \
-    --ressources_config.cpus_per_worker=$SLURM_CPUS_PER_GPU
+    --ressources_config.cpus_per_worker=$(($SLURM_CPUS_PER_GPU-1))
 
