@@ -2,7 +2,12 @@ from os import wait
 
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
-from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
+from etr_fr_expes.config import (
+    ETRDataConfig,
+    ETRTrainingConfig,
+    ETRTunerConfig,
+    get_inference_config,
+)
 from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR,
     DS_KEY_ETR_FR_POLITIC,
@@ -48,11 +53,7 @@ tuner_config = ETRTunerConfig(
     robustness_num_samples=0,
 )
 
-inference_config = InferenceConfig(
-    validation_tasks=[MAIN_DS_KEY],
-    test_tasks=[MAIN_DS_KEY, DS_KEY_ETR_FR_POLITIC],
-    task_to_task_ids={MAIN_DS_KEY:0, DS_KEY_ETR_FR_POLITIC:0}
-)
+inference_config = get_inference_config(training_config.train_tasks)
 
 if __name__ == "__main__":
     tuner_cls = tuner_cli()

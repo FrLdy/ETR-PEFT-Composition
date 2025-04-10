@@ -8,3 +8,6 @@ rsync-results:
 		--exclude="*" \
 		${AUSTRAL_USER}@austral.criann.fr:~/{{ cookiecutter.project_basename }}$$(pwd | awk -F"{{ cookiecutter.project_basename }}" '{print $$NF}')/results .
 
+hp-search:
+	sbatch ./slurm.sh --gpus-per-node={{ cookiecutter.gpus }}
+

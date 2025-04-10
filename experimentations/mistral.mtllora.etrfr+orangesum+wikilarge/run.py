@@ -2,7 +2,12 @@
 from adapters import MultiTask
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
-from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
+from etr_fr_expes.config import (
+    ETRDataConfig,
+    ETRTrainingConfig,
+    ETRTunerConfig,
+    get_inference_config,
+)
 from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR,
     DS_KEY_ORANGESUM,
@@ -55,10 +60,12 @@ tuner_config = ETRTunerConfig(
     robustness_num_samples=0,
 )
 
+inference_config = get_inference_config(training_config.train_tasks)
+
 if __name__ == "__main__":
     tuner_cls = tuner_cli()
     tuner = tuner_cls(
         tuner_config=tuner_config,
-        factories=TrainFuncFactories(training_config),
+        factories=TrainFuncFactories(training_config, inference_config),
     )
     tuner()

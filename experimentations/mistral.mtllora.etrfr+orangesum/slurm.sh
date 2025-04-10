@@ -5,16 +5,14 @@
 #SBATCH --mail-type ALL
 #SBATCH --mail-user francois.ledoyen@unicaen.fr
 
-#SBATCH --time=48:00:00 
+#SBATCH --time=24:00:00 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 
 
 #SBATCH --partition=gpu_h200
 #SBATCH --reservation=c23meso
 
-#SBATCH --cpus-per-gpu=20
-#SBATCH --gpus-per-node=8
-#SBATCH --gres=gpu:8
+#SBATCH --cpus-per-gpu=24
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
 

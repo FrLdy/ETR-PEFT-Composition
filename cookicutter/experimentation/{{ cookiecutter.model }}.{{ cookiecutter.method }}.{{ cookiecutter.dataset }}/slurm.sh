@@ -15,8 +15,6 @@
 #SBATCH --reservation={{ cookiecutter.reservation }}
 {% endif %}
 #SBATCH --cpus-per-gpu={{ cookiecutter.cpus_per_gpus }}
-#SBATCH --gpus-per-node={{ cookiecutter.gpus }}
-#SBATCH --gres=gpu:{{ cookiecutter.gpus }}
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
 
@@ -69,4 +67,3 @@ srun python ./run.py \
     --ressources_config.use_gpu=true \
     --ressources_config.num_workers=$SLURM_GPUS_ON_NODE \
     --ressources_config.cpus_per_worker=$SLURM_CPUS_PER_GPU
-

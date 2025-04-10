@@ -2,9 +2,15 @@
 from adapters import MultiTask
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
-from etr_fr_expes.config import ETRDataConfig, ETRTrainingConfig, ETRTunerConfig
+from etr_fr_expes.config import (
+    ETRDataConfig,
+    ETRTrainingConfig,
+    ETRTunerConfig,
+    get_inference_config,
+)
 from etr_fr_expes.dataset import (
     DS_KEY_ETR_FR,
+    DS_KEY_ETR_FR_POLITIC,
     DS_KEY_ORANGESUM,
     DS_KEY_WIKILARGE_FR,
 )
@@ -20,6 +26,7 @@ from etr_fr_expes.hyperparameters.lora_sta import (
 from etr_fr_expes.metric import METRIC_KEY_SRB
 from expes.chat_template import ChatTemplate
 from expes.cli import tuner_cli
+from expes.config import InferenceConfig
 from expes.tuner import TrainFuncFactories
 
 MAIN_DS_KEY = DS_KEY_ETR_FR 
@@ -55,10 +62,12 @@ tuner_config = ETRTunerConfig(
     robustness_num_samples=0,
 )
 
+inference_config = get_inference_config(train_tasks)
+
 if __name__ == "__main__":
     tuner_cls = tuner_cli()
     tuner = tuner_cls(
         tuner_config=tuner_config,
-        factories=TrainFuncFactories(training_config),
+        factories=TrainFuncFactories(training_config, inference_config),
     )
     tuner()
