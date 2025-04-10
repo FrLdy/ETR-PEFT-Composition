@@ -5,7 +5,7 @@
 #SBATCH --mail-type ALL
 #SBATCH --mail-user francois.ledoyen@unicaen.fr
 
-#SBATCH --time=48:00:00 
+#SBATCH --time=12:00:00 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 
 
