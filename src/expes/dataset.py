@@ -30,7 +30,7 @@ def build_mtl_dataset(
         ds_name: datasets[ds_name].map(
             lambda _: {
                 "task_ids": (
-                    i if task_to_task_ids is None else task_to_task_ids[ds_name]
+                    i if task_to_task_ids is None else task_to_task_ids[ds_name] if ds_name in task_to_task_ids else None
                 )
             }
         )

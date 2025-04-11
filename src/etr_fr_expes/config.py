@@ -46,17 +46,18 @@ class ETRDataConfig(DataConfig):
 
 
 def get_inference_config(train_tasks):
+    index = train_tasks.index(DS_KEY_ETR_FR)
     inference_config = InferenceConfig(
-        validation_tasks=train_tasks,
-        test_tasks=train_tasks,
+        metric = f"test_{DS_KEY_ETR_FR}_{METRIC_KEY_SRB}",
+        mode = "max",
+        validation_tasks=[],
+        test_tasks=[DS_KEY_ETR_FR, DS_KEY_ETR_FR_POLITIC],
         task_to_task_ids={
-            i:task for task,i in enumerate(train_tasks)
-        }
+            DS_KEY_ETR_FR: index, DS_KEY_ETR_FR_POLITIC: index
+        },
+        generation_config={"max_new_tokens": 200, "num_beams": 4},
+        n_samples=3,
     )
     
-    if DS_KEY_ETR_FR in train_tasks:
-        inference_config.test_tasks.append(DS_KEY_ETR_FR_POLITIC)
-        inference_config.task_to_task_ids.update({DS_KEY_ETR_FR_POLITIC: train_tasks.index(DS_KEY_ETR_FR)})
-
     return inference_config
 

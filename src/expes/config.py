@@ -26,10 +26,13 @@ from expes.types import SamplingStrategy
 
 @dataclass()
 class InferenceConfig:
+    metric: str
+    mode: str
     validation_tasks: List[str] = field(default_factory=list)
     test_tasks: List[str] = field(default_factory=list)
     task_to_task_ids: Optional[Dict] = None
     n_samples: int = 5
+    generation_config: Dict = field(default_factory=dict)
 
 @dataclass()
 class TunerConfig:
@@ -138,6 +141,7 @@ class TrainingConfig:
                 )
 
     def prepare_config_for_inference(self, inference_config: InferenceConfig):
+        self.generation_config.update(inference_config.generation_config)
         self.validation_tasks = inference_config.validation_tasks
         self.test_tasks = inference_config.test_tasks
         self.task_to_task_ids = inference_config.task_to_task_ids

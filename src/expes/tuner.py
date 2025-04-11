@@ -274,6 +274,8 @@ class RayTuner:
             _best_config = _best_config.prepare_config_for_inference(self.factories.inference_config) 
             # print(_best_config) # OK
 
+            self.tuner_config.metric = self.factories.inference_config.metric
+            self.tuner_config.mode = self.factories.inference_config.mode
             inference_results = self._fit(
                 expe_name=f"{self.expe_name}_test_best_model",
                 param_space=asdict(_best_config),
