@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mistral.mtllora.etrfr+wikilarge
+#SBATCH --job-name=deepseekr1.mtllora.etrfr+wikilarge
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --err=logs/%x-%j.err
 #SBATCH --mail-type ALL
@@ -10,9 +10,13 @@
 #SBATCH --ntasks-per-node=1 
 
 #SBATCH --partition=gpu_h200
+
 #SBATCH --reservation=c23meso
 
 #SBATCH --cpus-per-gpu=24
+#SBATCH --gpus-per-node=4
+#SBATCH --mem-per-cpu=10G
+
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
 
@@ -64,5 +68,5 @@ srun python ./run.py \
     --expe_name=$SLURM_JOB_NAME \
     --ressources_config.use_gpu=true \
     --ressources_config.num_workers=$SLURM_GPUS_ON_NODE \
-    --ressources_config.cpus_per_worker=$SLURM_CPUS_PER_GPU
+    --ressources_config.cpus_per_worker=$(($SLURM_CPUS_PER_GPU-1))
 
