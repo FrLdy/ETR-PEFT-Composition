@@ -15,7 +15,7 @@
 #SBATCH --reservation=c23meso
 
 #SBATCH --cpus-per-gpu=24
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=8
 #SBATCH --mem-per-cpu=10G
 
 job_dir=/dlocal/run/$SLURM_JOB_ID
