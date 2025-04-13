@@ -4,6 +4,10 @@ CHAT_TEMPLATE_IDS = {
     "meta-llama/Llama-3.1-8B": {
         "### Input:": [14711, 5688, 25],
         "### Output:": [17010, 9442, 25],
+    },
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": {
+        "### Input:": [14711, 5688, 25],
+        "### Output:": [17010, 9442, 25],
     }
 }
 
