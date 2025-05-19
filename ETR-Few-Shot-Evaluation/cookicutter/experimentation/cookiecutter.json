@@ -1,0 +1,17 @@
+{
+  "model": null,
+  "method": null,
+  "dataset": null,
+  "expe_name": "{{ cookiecutter.model }}.{{ cookiecutter.method }}.{{ cookiecutter.dataset }}",
+  "expe_slug": "{{ cookiecutter.expe_name.lower().replace(' ', '_') }}",
+  "author_mail": "francois.ledoyen@unicaen.fr",
+
+  "partition": "gpu_all",
+  "reservation": "",
+  "time": "5:00:00",
+  "nodes": 1,
+  "gpus": 1,
+  "cpus_per_gpus": 16,
+
+  "project_basename": "ETR-Few-Shot-Evaluation"
+}

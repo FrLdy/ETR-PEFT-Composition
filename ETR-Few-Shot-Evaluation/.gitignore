@@ -1,0 +1,7 @@
+venv
+__pycache__
+wandb/
+.env
+
+# Experimentations 
+results*
